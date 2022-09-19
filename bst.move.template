@@ -1,0 +1,919 @@
+// Tree based on GNU libavl https://adtinfo.org/
+module {{.Address}}::binary_search_tree {
+    use std::vector;
+    use std::option::{Self, Option};
+
+    const INVALID_ARGUMENT: u64 = 1;
+
+    // NULL_INDEX is 1 << 63;
+    const NULL_INDEX: u64 = 18446744073709551615;
+
+    // check if the index is NULL_INDEX
+    fun is_null_index(index: u64): bool {
+        index == NULL_INDEX
+    }
+
+    const AVL_ZERO: u8 = 128;
+    const AVL_RIGHT_HIGH: u8 = 129;
+    const AVL_RIGHT_HIGH_2: u8 = 130;
+    const AVL_LEFT_HIGH: u8 = 127;
+    const AVL_LEFT_HIGH_2: u8 = 126;
+
+    const RB_RED: u8 = 128;
+
+    const METADATA_DEFAULT: u8 = 128;
+
+    const TREE_TYPE_VANILLA: u8 = 0;
+    const TREE_TYPE_RED_BLACK: u8 = 1;
+    const TREE_TYPE_AVL: u8 = 2;
+
+    /// Entry is the internal BinarySearchTree element.
+    struct Entry<V> has store, copy, drop {
+        // key
+        key: u128,
+        // value
+        value: V,
+        // parent
+        parent: u64,
+        // left child
+        left_child: u64,
+        // right child.
+        right_child: u64,
+        // metadata
+        metadata: u8,
+    }
+
+    fun new_entry<V>(key: u128, value: V): Entry<V> {
+        Entry<V> {
+            key,
+            value,
+            parent: NULL_INDEX,
+            left_child: NULL_INDEX,
+            right_child: NULL_INDEX,
+            metadata: METADATA_DEFAULT,
+        }
+    }
+
+    #[test_only]
+    fun new_entry_for_test<V>(key: u128, value: V, parent: u64, left_child: u64, right_child: u64, metadata: u8): Entry<V> {
+        Entry {
+            key,
+            value,
+            parent,
+            left_child,
+            right_child,
+            metadata,
+        }
+    }
+
+    /// BinarySearchTree contains entries flattened in an array.
+    struct BinarySearchTree<V> has store, copy, drop {
+        root: u64,
+        entries: vector<Entry<V>>,
+        tree_type: u8
+    }
+
+    /// new returns an empty BinarySearchTree.
+    public fun new<V>(): BinarySearchTree<V> {
+        new_tree<V>(TREE_TYPE_VANILLA)
+    }
+
+    /// new returns an empty BinarySearchTree.
+    public fun new_redblack<V>(): BinarySearchTree<V> {
+        new_tree<V>(TREE_TYPE_RED_BLACK)
+    }
+
+    /// new returns an empty BinarySearchTree.
+    public fun new_avl<V>(): BinarySearchTree<V> {
+        new_tree<V>(TREE_TYPE_AVL)
+    }
+
+    fun new_tree<V>(tree_type: u8): BinarySearchTree<V> {
+        BinarySearchTree {
+            root: NULL_INDEX,
+            entries: vector::empty<Entry<V>>(),
+            tree_type: tree_type,
+        }
+    }
+
+    /// find returns the element index in the bst, or none if not found.
+    public fun find<V>(tree: &BinarySearchTree<V>, key: u128): Option<u64> {
+        let current = tree.root;
+
+        while(current != NULL_INDEX) {
+            assert!(current < size(tree), current);
+            let node = vector::borrow(&tree.entries, current);
+            if (node.key == key) {
+                return option::some(current)
+            } else if(node.key < key) {
+                current = node.right_child;
+            } else {
+                current = node.left_child;
+            };
+        };
+
+        option::none()
+    }
+
+    fun get_metadata<V>(tree: &BinarySearchTree<V>, index: u64): u8 {
+        if (index != NULL_INDEX) {
+            vector::borrow(&tree.entries, index).metadata
+        } else {
+            0
+        }
+    }
+
+    fun set_metadata<V>(tree: &mut BinarySearchTree<V>, index: u64, metadata: u8) {
+        vector::borrow_mut(&mut tree.entries, index).metadata = metadata;
+    }
+
+    /// insert puts the value keyed at the input keys into the bst.
+    public fun insert<V>(tree: &mut BinarySearchTree<V>, key: u128, value: V) {
+        // the max size of the tree is NULL_INDEX.
+        assert!(size(tree) <= NULL_INDEX, size(tree));
+        vector::push_back(
+            &mut tree.entries,
+            new_entry(key, value)
+        );
+
+        let node = size(tree) - 1;
+        let parent = NULL_INDEX;
+        let insert = tree.root;
+        let is_right_child = false;
+
+        while (insert != NULL_INDEX) {
+            let insert_node = vector::borrow(&tree.entries, insert);
+            assert!(insert_node.key != key, INVALID_ARGUMENT);
+            parent = insert;
+            is_right_child = insert_node.key < key;
+            insert = if (is_right_child) {
+                insert_node.right_child
+            } else {
+                insert_node.left_child
+            };
+        };
+
+        replace_parent(tree, node, parent);
+
+        if (parent != NULL_INDEX) {
+            if (is_right_child) {
+                replace_right_child(tree, parent, node);
+            } else {
+                replace_left_child(tree, parent, node);
+            };
+        } else {
+            tree.root = node;
+        };
+
+        // walk back the tree and update the metadata
+        if (tree.tree_type == TREE_TYPE_AVL) {
+            while( parent != NULL_INDEX) {
+                let (increased, new_parent) = avl_update_insert(tree, parent, is_right_child);
+                if (!increased) {
+                    break
+                };
+                parent = get_parent(tree, new_parent);
+                if (parent == NULL_INDEX) {
+                    break
+                };
+                is_right_child = is_right_child(tree, new_parent, parent);
+            }
+        } else if (tree.tree_type == TREE_TYPE_RED_BLACK) {
+        }
+    }
+
+    /// remove deletes and returns the element from the bst.
+    public fun remove<V>(tree: &mut BinarySearchTree<V>, index: u64): (u128, V) {
+        let parent = get_parent(tree, index);
+        let left_child = get_left_child(tree, index);
+        let right_child = get_right_child(tree, index);
+        let is_right = if (parent != NULL_INDEX) {
+            is_right_child(tree, index, parent)
+        } else {
+            false
+        };
+
+        let (rebalance_start, is_new_right) =
+        if (right_child == NULL_INDEX) {
+            // right child is null
+            //         index
+            //       /       \
+            //     left
+            //  --
+            //        left
+            if (parent == NULL_INDEX) {
+                replace_parent(tree, left_child, NULL_INDEX);
+                tree.root = left_child;
+            } else {
+                replace_child(tree, parent, index, left_child);
+            };
+            (parent, is_right)
+        } else if (left_child == NULL_INDEX){
+            // left child is null
+            //         index
+            //       /       \
+            //               right
+            //  --
+            //        right
+            if (parent == NULL_INDEX) {
+                replace_parent(tree, right_child, NULL_INDEX);
+                tree.root = right_child;
+            } else {
+                replace_child(tree, parent, index, right_child);
+            };
+            (parent, is_right)
+        } else {
+            let right_child_s_left = get_left_child(tree, right_child);
+            if (right_child_s_left == NULL_INDEX) {
+                // right child is not null, and right child's left child is null
+                //              index
+                //           /         \
+                //        left         right
+                //                        \
+                //                         a
+                // -------------
+                //               right
+                //            /       \
+                //          left       a
+                replace_left_child(tree, right_child, left_child);
+
+                if (parent == NULL_INDEX) {
+                    replace_parent(tree, right_child, NULL_INDEX);
+                    tree.root = right_child;
+                } else {
+                    replace_child(tree, parent, index, right_child);
+                };
+                let old_metadata = get_metadata(tree, index);
+                set_metadata(tree, right_child, old_metadata);
+
+                (right_child, is_right)
+            } else {
+                // right child is not null, and right child's left child is not null either
+                //                 index
+                //               /       \
+                //             left      right
+                //                       /  \
+                //                      *
+                //                     /
+                //                    min
+                //                     \
+                //                      a
+                // -------------------------------------------------
+                //                 min
+                //               /       \
+                //             left      right
+                //                       /  \
+                //                      *
+                //                     /
+                //                    a
+                let next_successor = get_min_index_from(tree, right_child_s_left);
+                let successor_parent = get_parent(tree, next_successor);
+                let next_successor_right = get_right_child(tree, next_successor);
+
+                replace_left_child(tree, successor_parent, next_successor_right);
+                replace_left_child(tree, next_successor, left_child);
+                replace_right_child(tree, next_successor, right_child,);
+
+                if (parent == NULL_INDEX) {
+                    replace_parent(tree, next_successor, NULL_INDEX);
+                    tree.root = next_successor;
+                } else {
+                    replace_child(tree, parent, index, next_successor);
+                };
+                let old_metadata = get_metadata(tree, index);
+                set_metadata(tree, next_successor, old_metadata);
+                (successor_parent, false)
+            }
+        };
+
+        if (tree.tree_type == TREE_TYPE_AVL) {
+            while (rebalance_start != NULL_INDEX) {
+                let (decreased, new_start) = avl_update_remove(tree, rebalance_start, is_new_right);
+                if (!decreased) {
+                    break
+                };
+                rebalance_start = get_parent(tree, new_start);
+                if (rebalance_start == NULL_INDEX) {
+                    break
+                };
+
+                is_new_right = is_right_child(tree, new_start, rebalance_start);
+            };
+        };
+        // swap index for pop out.
+        let size = size(tree);
+        if (index != size - 1) {
+            vector::swap(&mut tree.entries, size - 1, index);
+            if (tree.root == size - 1) {
+                tree.root = index;
+            };
+            let parent = get_parent(tree, index);
+            let left_child = get_left_child(tree, index);
+            let right_child = get_right_child(tree, index);
+            replace_child(tree, parent, size - 1, index);
+            replace_parent(tree, left_child, index);
+            replace_parent(tree, right_child, index);
+        };
+
+        ////////// now clear up.
+        let Entry { key, value, parent: _, left_child: _, right_child: _, metadata: _ } = vector::pop_back(&mut tree.entries);
+
+        if (size(tree) == 0) {
+            tree.root = NULL_INDEX;
+        };
+
+        (key, value)
+    }
+
+    fun is_right_child<V>(tree: &BinarySearchTree<V>, index: u64, parent_index: u64): bool {
+        if (parent_index == NULL_INDEX) {
+            std::debug::print_stack_trace();
+        };
+        assert!(parent_index != NULL_INDEX, INVALID_ARGUMENT);
+        assert!(parent_index < size(tree), INVALID_ARGUMENT);
+        vector::borrow(&tree.entries, parent_index).right_child == index
+    }
+
+    fun is_left_child<V>(tree: &BinarySearchTree<V>, index: u64, parent_index: u64): bool {
+        vector::borrow(&tree.entries, parent_index).left_child == index
+    }
+
+    /// Replace the child of parent if parent_index is not NULL_INDEX.
+    fun replace_child<V>(tree: &mut BinarySearchTree<V>, parent_index: u64, original_child: u64, new_child: u64) {
+        if (parent_index != NULL_INDEX) {
+            if (is_right_child(tree, original_child, parent_index)) {
+                replace_right_child(tree, parent_index, new_child);
+            } else if (is_left_child(tree, original_child, parent_index)) {
+                replace_left_child(tree, parent_index, new_child);
+            }
+        }
+    }
+
+    fun replace_left_child<V>(tree: &mut BinarySearchTree<V>, parent_index: u64, new_child: u64) {
+        if (parent_index != NULL_INDEX) {
+            vector::borrow_mut(&mut tree.entries, parent_index).left_child = new_child;
+            if (new_child != NULL_INDEX) {
+                vector::borrow_mut(&mut tree.entries, new_child).parent = parent_index;
+            };
+        }
+    }
+
+    fun replace_right_child<V>(tree: &mut BinarySearchTree<V>, parent_index: u64, new_child: u64) {
+        if (parent_index != NULL_INDEX) {
+            vector::borrow_mut(&mut tree.entries, parent_index).right_child = new_child;
+                if (new_child != NULL_INDEX) {
+                vector::borrow_mut(&mut tree.entries, new_child).parent = parent_index;
+            };
+        }
+    }
+
+    /// replace parent of index if index is not NULL_INDEX.
+    fun replace_parent<V>(tree: &mut BinarySearchTree<V>, index: u64, parent_index: u64) {
+        if (index != NULL_INDEX) {
+            vector::borrow_mut(&mut tree.entries, index).parent = parent_index;
+        }
+    }
+
+    /// get parent
+    fun get_parent<V>(tree: &BinarySearchTree<V>, index: u64): u64 {
+        if (index != NULL_INDEX) {
+            vector::borrow(&tree.entries, index).parent
+        } else {
+            NULL_INDEX
+        }
+    }
+
+    /// get left child
+    fun get_left_child<V>(tree: &BinarySearchTree<V>, index: u64): u64 {
+        if (index != NULL_INDEX) {
+            vector::borrow(&tree.entries, index).left_child
+        } else {
+            NULL_INDEX
+        }
+    }
+
+    /// get right child.
+    fun get_right_child<V>(tree: &BinarySearchTree<V>, index: u64): u64 {
+        if (index != NULL_INDEX) {
+            vector::borrow(&tree.entries, index).right_child
+        } else {
+            NULL_INDEX
+        }
+    }
+
+    /// rotate_right (clockwise rotate)
+    /// -----------------------------------------------------
+    ///                 index
+    ///          left            right
+    ///        x      y
+    /// -----------------------------------------------------
+    ///                  left
+    ///              x          index
+    ///                       y       right
+    fun rotate_right<V>(tree: &mut BinarySearchTree<V>, index: u64) {
+        let left = get_left_child(tree, index);
+        assert!(
+            left != NULL_INDEX,
+            INVALID_ARGUMENT
+        );
+        let y = get_right_child(tree, left);
+
+        let parent = get_parent(tree, index);
+
+        // update index
+        replace_left_child(tree, index, y);
+
+        // update left
+        if (parent != NULL_INDEX) {
+            replace_child(tree, parent, index, left);
+        } else {
+            tree.root = left;
+            replace_parent(tree, left, NULL_INDEX);
+        };
+        replace_right_child(tree, left, index);
+    }
+
+    /// rotate_left (counter-clockwis rotate)
+    /// -----------------------------------------------------
+    ///                 index
+    ///          left            right
+    ///                       x          y
+    /// -----------------------------------------------------
+    ///                  right
+    ///          index             y
+    ///      left        x
+    fun rotate_left<V>(tree: &mut BinarySearchTree<V>, index: u64) {
+        let right = get_right_child(tree, index);
+        assert!(
+            right != NULL_INDEX,
+            INVALID_ARGUMENT,
+        );
+        let x = get_left_child(tree, right);
+
+        let parent = get_parent(tree, index);
+
+        // update index
+        replace_right_child(tree, index, x);
+
+        // update right
+        if (parent != NULL_INDEX) {
+            replace_child(tree, parent, index, right);
+        } else {
+            tree.root = right;
+            replace_parent(tree, right, NULL_INDEX);
+        };
+        replace_left_child(tree, right, index);
+    }
+
+    /// get index of the min of the tree.
+    public fun get_min_index<V>(tree: &BinarySearchTree<V>): u64 {
+        let current = get_min_index_from(tree, tree.root);
+        assert!(current != NULL_INDEX, current);
+        current
+    }
+
+    public fun get_min_index_from<V>(tree: &BinarySearchTree<V>, index: u64): u64 {
+        let current = index;
+        let left_child = get_left_child(tree, current);
+
+        while (left_child != NULL_INDEX) {
+            current = left_child;
+            left_child = get_left_child(tree, current);
+        };
+
+        current
+    }
+
+    /// find next value in order
+    public fun next_in_order<V>(tree: &BinarySearchTree<V>, index: u64): u64 {
+        assert!(index != NULL_INDEX, index);
+        let right_child = get_right_child(tree, index);
+        let parent = get_parent(tree, index);
+
+        if (right_child != NULL_INDEX) {
+            // first, check if right child is null.
+            // then go to right child, and check if there is left child.
+            let next = right_child;
+            let next_left = get_left_child(tree, next);
+            while (next_left != NULL_INDEX) {
+                next = next_left;
+                next_left = get_left_child(tree, next);
+            };
+
+           next
+        } else if (parent != NULL_INDEX) {
+            // there is no right child, check parent.
+            // if current is the left child of the parent, parent is then next.
+            // if current is the right child of the parent, set current to parent
+            let current = index;
+            while(parent != NULL_INDEX && is_right_child(tree, current, parent)) {
+                current = parent;
+                parent = get_parent(tree, current);
+            };
+
+            parent
+        } else {
+            NULL_INDEX
+        }
+    }
+
+    // updates the metadata for an index after one of the subtree's height increase by 1.
+    // returns if the tree height at this index is increasing.
+    fun avl_update_insert<V>(tree: &mut BinarySearchTree<V>, index: u64, is_right: bool): (bool, u64) {
+        if (index == NULL_INDEX) {
+            return (false, index)
+        };
+        let metadata = get_metadata(tree, index);
+
+        // if the subtree is balanced, the height of the subtree is increased and the subtree becomes unbalance.
+        if (metadata == AVL_ZERO) {
+             let new_metadata = if (is_right) {
+                AVL_RIGHT_HIGH
+            } else {
+                AVL_LEFT_HIGH
+            };
+
+            set_metadata(tree, index, new_metadata);
+
+            return (true, index)
+        };
+
+        // if the left tree of this subtree is higher and the right sub tree is increased,
+        // the subtree here is now balanced and the height stays the same.
+        if (metadata == AVL_LEFT_HIGH && is_right) {
+            set_metadata(tree, index, AVL_ZERO);
+            return (false, index)
+        };
+
+        // similarly if the right sub tree of the this sub tree is higher and the left sub tree is increased,
+        // the subtree here is now balanced and the height stays the same.
+        if (metadata == AVL_RIGHT_HIGH && !is_right) {
+            set_metadata(tree, index, AVL_ZERO);
+            return (false, index)
+        };
+
+        // now the tree is unbalanced too much
+        let new_metadata = if (metadata == AVL_LEFT_HIGH) {
+            AVL_LEFT_HIGH_2
+        } else {
+            AVL_RIGHT_HIGH_2
+        };
+
+        set_metadata(tree, index, new_metadata);
+
+        let (decreased, new_index) = avl_rebalance(tree, index, false);
+
+        assert!(decreased, INVALID_ARGUMENT);
+
+        (false, new_index)
+    }
+
+    fun avl_update_remove<V>(tree: &mut BinarySearchTree<V>, index: u64, is_right: bool): (bool, u64) {
+        if (index == NULL_INDEX) {
+            return (false, index)
+        };
+
+        let metadata = get_metadata(tree, index);
+
+        // sub tree is balanced, it becomes unbalanced but upper tree height doesn't decrease
+        if (metadata == AVL_ZERO) {
+            let new_metadata = if (is_right) {
+                AVL_LEFT_HIGH
+            } else {
+                AVL_RIGHT_HIGH
+            };
+
+            set_metadata(tree, index, new_metadata);
+            return (false, index)
+        };
+
+        // sub tree's left sub tree is high, decreasing its height set the sub tree to balanced.
+        // but parent tree height decreases
+        if (metadata == AVL_LEFT_HIGH && !is_right) {
+            set_metadata(tree, index, AVL_ZERO);
+            return (true, index)
+        };
+
+        // sub tree's right sub tree is high, decreasing its height set the sub tree to balanced.
+        // but parent tree height decreases
+        if (metadata == AVL_RIGHT_HIGH && is_right) {
+            set_metadata(tree, index, AVL_ZERO);
+            return (true, index)
+        };
+
+        let new_metadata = if (metadata == AVL_RIGHT_HIGH) {
+            AVL_RIGHT_HIGH_2
+        } else {
+            AVL_LEFT_HIGH_2
+        };
+
+        set_metadata(tree, index, new_metadata);
+
+        avl_rebalance(tree, index, true)
+    }
+
+    //
+    fun avl_rebalance<V>(tree: &mut BinarySearchTree<V>, index: u64, is_remove: bool): (bool, u64) {
+        let metadata = get_metadata(tree, index);
+
+        assert!(metadata == AVL_LEFT_HIGH_2 || metadata == AVL_RIGHT_HIGH_2, INVALID_ARGUMENT);
+
+        let left_child = get_left_child(tree, index);
+        let right_child = get_right_child(tree, index);
+
+        if (metadata == AVL_LEFT_HIGH_2) {
+            // left subtree is higher
+            let left_metadata = get_metadata(tree, left_child);
+
+            assert!(left_metadata != AVL_RIGHT_HIGH_2 && left_metadata != AVL_LEFT_HIGH_2, INVALID_ARGUMENT);
+            assert!(is_remove || left_metadata != AVL_ZERO, INVALID_ARGUMENT);
+
+            if (left_metadata != AVL_RIGHT_HIGH) {
+                // case 1:
+                //              index --
+                //            /           \
+                //         left (-/0)        right
+                //        /   \
+                //       a     b
+                //      /     /
+                //     c     (/e)
+                // -------
+                //               left (0/+)
+                //              /      \
+                //             a     index (0/-)
+                //            /    /         \
+                //           c    b          right
+                //               /
+                //              (/e)
+                let old_left_meta = get_metadata(tree, left_child);
+                rotate_right(tree, index);
+                if (old_left_meta == AVL_ZERO) {
+                    set_metadata(tree, left_child, AVL_RIGHT_HIGH);
+                    set_metadata(tree, index, AVL_LEFT_HIGH);
+                } else {
+                    set_metadata(tree, left_child, AVL_ZERO);
+                    set_metadata(tree, index, AVL_ZERO);
+                };
+
+                (old_left_meta != AVL_ZERO, left_child)
+            } else {
+                // case 2:
+                //              index --
+                //            /          \
+                //         left +       right
+                //       /    \
+                //      a      w (+/0/-)
+                //           /   \
+                //       (/b/b)  (c/c/)
+                // --------
+                //                   w 0
+                //                /       \
+                //       left (-1/0/0)    index (0/0/1)
+                //       /    \           /     \
+                //      a   (/b/b)   (c/c/)      right
+                let w = get_right_child(tree, left_child);
+                let w_meta = get_metadata(tree, w);
+                rotate_left(tree, left_child);
+                rotate_right(tree, index);
+                set_metadata(tree, w, AVL_ZERO);
+                set_metadata(tree, left_child, if(w_meta == AVL_RIGHT_HIGH) { AVL_LEFT_HIGH } else {AVL_ZERO});
+                set_metadata(tree, index, if(w_meta == AVL_LEFT_HIGH) {AVL_RIGHT_HIGH} else {AVL_ZERO});
+
+                (true, w)
+            }
+        } else {
+            let right_metadata = get_metadata(tree, right_child);
+
+            assert!(right_metadata != AVL_RIGHT_HIGH_2 && right_metadata != AVL_LEFT_HIGH_2, INVALID_ARGUMENT);
+            assert!(is_remove || right_metadata != AVL_ZERO, INVALID_ARGUMENT);
+
+            if (right_metadata != AVL_LEFT_HIGH) {
+                // case 1:
+                //              index ++
+                //            /           \
+                //         left         right +/0
+                //                       /   \
+                //                      a     b
+                //                     /       \
+                //                    (/c)      d
+                // -------
+                //                 right 0/-1
+                //              /          \
+                //           index 0/1       b
+                //         /        \         \
+                //       left        a         d
+                //                    \
+                //                    (/c)
+                let old_right_meta = get_metadata(tree, right_child);
+                rotate_left(tree, index);
+                if (old_right_meta == AVL_ZERO) {
+                    set_metadata(tree, right_child, AVL_LEFT_HIGH);
+                    set_metadata(tree, index, AVL_RIGHT_HIGH);
+                } else {
+                    set_metadata(tree, right_child, AVL_ZERO);
+                    set_metadata(tree, index, AVL_ZERO);
+                };
+                (old_right_meta != AVL_ZERO, right_child)
+            } else {
+                // case 2:
+                //                index ++
+                //            /             \
+                //         left            right -
+                //                     /          \
+                //                   w (-/0/+)      a
+                //                  /   \
+                //               (b/b/) (/c/c)
+                // --------
+                //                    w 0
+                //            /             \
+                //      index (0/0/-1)    right (1/0/0)
+                //       /    \           /     \
+                //      left  (b/b/)  (/c/c)     a
+                let w = get_left_child(tree, right_child);
+                let w_meta = get_metadata(tree, w);
+                rotate_right(tree, right_child);
+                rotate_left(tree, index);
+                set_metadata(tree, w, AVL_ZERO);
+                set_metadata(tree, right_child, if (w_meta == AVL_LEFT_HIGH) {AVL_RIGHT_HIGH} else {AVL_ZERO});
+                set_metadata(tree, index, if (w_meta == AVL_RIGHT_HIGH) {AVL_LEFT_HIGH} else {AVL_ZERO});
+
+                (true, w)
+            }
+        }
+    }
+
+    /// borrow returns a reference to the element.
+    public fun borrow_at_index<V>(bst: &BinarySearchTree<V>, index: u64): (u128, &V) {
+        let entry = vector::borrow(&bst.entries, index);
+        (entry.key, &entry.value)
+    }
+
+    /// borrow_mut returns a mutable reference to the element.
+    public fun borrow_at_index_mut<V>(bst: &mut BinarySearchTree<V>, index: u64): (u128, &mut V) {
+        let entry = vector::borrow_mut(&mut bst.entries, index);
+        (entry.key, &mut entry.value)
+    }
+
+    /// size returns the number of elements in the bst.
+    public fun size<V>(tree: &BinarySearchTree<V>): u64 {
+        vector::length(&tree.entries)
+    }
+
+    /// empty returns true if the bst is empty.
+    public fun empty<V>(tree: &BinarySearchTree<V>): bool {
+        vector::length(&tree.entries) == 0
+    }
+
+    /// returns a reference to the bst's entries.
+    public fun borrow_entries<V>(bst: &BinarySearchTree<V>): &vector<Entry<V>> {
+        &bst.entries
+    }
+
+    /// destroys the tree if it's empty.
+    public fun destroy_empty<V>(tree: BinarySearchTree<V>) {
+        let BinarySearchTree { entries, root: _, tree_type: _ } = tree;
+        assert!(vector::is_empty(&entries), INVALID_ARGUMENT);
+        vector::destroy_empty(entries);
+    }
+
+    #[test]
+    fun test_avl() {
+        let bst = new_avl<u128>();
+        insert(&mut bst, 6, 6);
+        insert(&mut bst, 5, 5);
+        insert(&mut bst, 4, 4);
+        let v = vector<Entry<u128>> [
+            new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, AVL_ZERO),
+            new_entry_for_test<u128>(5, 5, NULL_INDEX, 2, 0, AVL_ZERO),
+            new_entry_for_test<u128>(4, 4, 1, NULL_INDEX, NULL_INDEX, AVL_ZERO),
+        ];
+
+        assert!(bst.root == 1, bst.root);
+        assert!(&bst.entries == &v, 2);
+
+        let v = vector<Entry<u128>> [
+            new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, AVL_ZERO),
+            new_entry_for_test<u128>(5, 5, NULL_INDEX, 4, 0, AVL_LEFT_HIGH),
+            new_entry_for_test<u128>(4, 4, 4, NULL_INDEX, NULL_INDEX, AVL_ZERO),
+            new_entry_for_test<u128>(1, 1, 4, NULL_INDEX, NULL_INDEX, AVL_ZERO),
+            new_entry_for_test<u128>(3, 3, 1, 3, 2, AVL_ZERO),
+        ];
+
+        insert(&mut bst, 1, 1);
+        insert(&mut bst, 3, 3);
+        assert!(&bst.entries == &v, 3);
+
+        let v = vector<Entry<u128>> [
+            new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, AVL_ZERO), // 0
+            new_entry_for_test<u128>(5, 5, 4, 2, 0, AVL_ZERO), // 1
+            new_entry_for_test<u128>(4, 4, 1, NULL_INDEX, NULL_INDEX, AVL_ZERO), // 2
+            new_entry_for_test<u128>(1, 1, 4, NULL_INDEX, 5, AVL_RIGHT_HIGH), // 3
+            new_entry_for_test<u128>(3, 3, NULL_INDEX, 3, 1, AVL_ZERO), // 4
+            new_entry_for_test<u128>(2, 2, 3, NULL_INDEX, NULL_INDEX, AVL_ZERO), // 5
+        ];
+
+        insert(&mut bst, 2, 2);
+        assert!(&bst.entries == &v, 4);
+    }
+
+    #[test]
+    fun test_avl_reverse() {
+        let bst = new_avl<u128>();
+        insert(&mut bst, 6, 6);
+        insert(&mut bst, 7, 7);
+        insert(&mut bst, 8, 8);
+        let v = vector<Entry<u128>> [
+            new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, AVL_ZERO),
+            new_entry_for_test<u128>(7, 7, NULL_INDEX, 0, 2, AVL_ZERO),
+            new_entry_for_test<u128>(8, 8, 1, NULL_INDEX, NULL_INDEX, AVL_ZERO),
+        ];
+
+        assert!(bst.root == 1, bst.root);
+        assert!(&bst.entries == &v, 2);
+
+        let v = vector<Entry<u128>> [
+            new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, AVL_ZERO),
+            new_entry_for_test<u128>(7, 7, NULL_INDEX, 0, 4, AVL_RIGHT_HIGH),
+            new_entry_for_test<u128>(8, 8, 4, NULL_INDEX, NULL_INDEX, AVL_ZERO),
+            new_entry_for_test<u128>(11, 11, 4, NULL_INDEX, NULL_INDEX, AVL_ZERO),
+            new_entry_for_test<u128>(9, 9, 1, 2, 3, AVL_ZERO),
+        ];
+
+        insert(&mut bst, 11, 11);
+        insert(&mut bst, 9, 9);
+        assert!(&bst.entries == &v, 3);
+
+        let v = vector<Entry<u128>> [
+            new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, AVL_ZERO), // 0
+            new_entry_for_test<u128>(7, 7, 4, 0, 2, AVL_ZERO), // 1
+            new_entry_for_test<u128>(8, 8, 1, NULL_INDEX, NULL_INDEX, AVL_ZERO), // 2
+            new_entry_for_test<u128>(11, 11, 4, 5, NULL_INDEX, AVL_LEFT_HIGH), // 3
+            new_entry_for_test<u128>(9, 9, NULL_INDEX, 1, 3, AVL_ZERO), // 4
+            new_entry_for_test<u128>(10, 10, 3, NULL_INDEX, NULL_INDEX, AVL_ZERO), // 5
+        ];
+
+        insert(&mut bst, 10, 10);
+        assert!(&bst.entries == &v, 4);
+    }
+
+    #[test]
+    fun test_min_iter() {
+        let bst = new_avl<u128>();
+        let idx: u128 = 9;
+        while (idx > 0) {
+            let v = idx * 2;
+            insert(&mut bst, v, v);
+            idx = idx - 1;
+        };
+
+        insert(&mut bst, 0, 0);
+
+        while (idx < 10) {
+            let v = idx * 2 + 1;
+            insert(&mut bst, v, v);
+            idx = idx + 1;
+        };
+
+        let idx = 0;
+        while (idx < 20) {
+            let v = find(&bst, idx);
+            idx = idx + 1;
+            assert!(option::is_some(&v), (idx as u64));
+        };
+
+        let idx: u128 = 0;
+        let iter = get_min_index(&bst);
+        while (idx < 20) {
+            let (_, v) = borrow_at_index(&bst, iter);
+            let v = *v;
+            assert!(v == idx, (v as u64));
+            idx = idx + 1;
+            iter = next_in_order(&bst, iter);
+        };
+
+        assert!(iter == NULL_INDEX, iter);
+        std::debug::print(&bst.entries);
+        let min_index = get_min_index(&bst);
+        remove(&mut bst, min_index);
+        std::debug::print(&bst.entries);
+        let i = find(&bst, 4);
+        remove(&mut bst, std::option::extract(&mut i));
+        std::debug::print(&bst.entries);
+        remove(&mut bst, 12);
+        std::debug::print(&bst.entries);
+        remove(&mut bst, 13);
+        while(!empty(&bst)) {
+            std::debug::print(&bst.entries);
+
+            let min_index = get_min_index(&bst);
+            let (key, value) = borrow_at_index(&bst, min_index);
+            let value = *value;
+            assert!(key == value, (key as u64));
+            remove(&mut bst, min_index);
+        };
+
+        std::debug::print(&bst.entries);
+
+        destroy_empty(bst);
+    }
+}
