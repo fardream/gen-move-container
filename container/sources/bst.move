@@ -299,6 +299,10 @@ module container::binary_search_tree {
         let (rebalance_start, is_new_right) =
         if (right_child == NULL_INDEX) {
             // right child is null
+            // replace with left child.
+            // No need to swap metadata
+            // - in AVL, left is balanced and new value is also balanced.
+            // - in RB, left must be red and index must be black.
             //         index
             //       /       \
             //     left
@@ -312,7 +316,11 @@ module container::binary_search_tree {
             };
             (parent, is_right)
         } else if (left_child == NULL_INDEX){
-            // left child is null
+            // left child is null.
+            // replace with right child.
+            // No need to swap metadata.
+            // - in AVL, right is balanced and the new value is also balanced.
+            // - in RB, right must be red and index must be black.
             //         index
             //       /       \
             //               right
@@ -347,9 +355,11 @@ module container::binary_search_tree {
                     replace_child(tree, parent, index, right_child);
                 };
                 let old_metadata = get_metadata(tree, index);
+                let replaced_metadata = get_metadata(tree, right_child);
                 set_metadata(tree, right_child, old_metadata);
+                set_metadata(tree, index, replaced_metadata);
 
-                (right_child, is_right)
+                (right_child, true)
             } else {
                 // right child is not null, and right child's left child is not null either
                 //                 index
@@ -362,7 +372,7 @@ module container::binary_search_tree {
                 //                     \
                 //                      a
                 // -------------------------------------------------
-                //                 min
+                //                   min
                 //               /       \
                 //             left      right
                 //                       /  \
@@ -384,7 +394,9 @@ module container::binary_search_tree {
                     replace_child(tree, parent, index, next_successor);
                 };
                 let old_metadata = get_metadata(tree, index);
+                let replaced_metadata = get_metadata(tree, next_successor);
                 set_metadata(tree, next_successor, old_metadata);
+                set_metadata(tree, index, replaced_metadata);
                 (successor_parent, false)
             }
         };
@@ -401,6 +413,26 @@ module container::binary_search_tree {
                 };
 
                 is_new_right = is_right_child(tree, new_start, rebalance_start);
+            };
+        } else if (tree.tree_type == TREE_TYPE_RED_BLACK) {
+            let removal_metadata = get_metadata(tree, index);
+            while (rebalance_start != NULL_INDEX) {
+                let (do_continue, new_start) = rb_update_remove(tree, rebalance_start, is_new_right, removal_metadata);
+                if (!do_continue) {
+                    break
+                };
+                if (new_start == NULL_INDEX) {
+                    break
+                };
+                is_new_right = is_right_child(tree, rebalance_start, new_start);
+                rebalance_start = new_start;
+            };
+
+            if (tree.root != NULL_INDEX) {
+                let root = tree.root;
+                if (root != NULL_INDEX) {
+                    set_metadata(tree, root, RB_BLACK);
+                }
             };
         };
         // swap index for pop out.
@@ -975,6 +1007,230 @@ module container::binary_search_tree {
                 set_metadata(tree, red_child, RB_BLACK);
                 set_metadata(tree, parent, RB_RED);
                 red_child
+            }
+        }
+    }
+
+    // update red black tree after a removal of a node.
+    fun rb_update_remove<V>(tree: &mut BinarySearchTree<V>, index: u64, is_right: bool, metadata_removed: u8): (bool, u64) {
+        // if the removed node is RED, we are good.
+        if (metadata_removed == RB_RED) {
+            return (false, index)
+        };
+
+        // get the new child.
+        let child = if (is_right) {
+            get_right_child(tree, index)
+        } else {
+            get_left_child(tree, index)
+        };
+
+        if (child != NULL_INDEX && get_metadata(tree, child) == RB_RED) {
+            set_metadata(tree, child, RB_BLACK);
+            return (false, index)
+        };
+
+        // Now child is either black or null.
+        // recall a black node is removed from child side.
+        // so the sibling must has at least one black node.
+        // therefore sibling must exist.
+        // w is sibling
+        let w = if (is_right) {
+            get_left_child(tree, index)
+        } else {
+            get_right_child(tree, index)
+        };
+
+        let index_color = get_metadata(tree, index);
+        assert!(
+            w != NULL_INDEX,
+            INVALID_ARGUMENT,
+        );
+        if (!is_right) {
+            // if sibling (w) is red
+            // rotate left at index.
+            //                index (b)
+            //            /            \
+            // child (null or b)        sibling (r)
+            //                          /      \
+            //                         B(b)     D(b)
+            // ---------------
+            //              sibling (b)
+            //             /           \
+            //          index(r)     D(b)
+            //          /         \
+            //   child(null or b) B(b)
+            let sibling_color = get_metadata(tree, w);
+            if (sibling_color == RB_RED) {
+                assert!(
+                    index_color == RB_BLACK,
+                    INVALID_ARGUMENT,
+                );
+
+                rotate_left(tree, index);
+                set_metadata(tree, w, RB_BLACK);
+                set_metadata(tree, index, RB_RED);
+                index_color = RB_RED;
+
+                w = get_right_child(tree, index);
+                assert!(
+                    get_metadata(tree, w) == RB_BLACK,
+                    INVALID_ARGUMENT,
+                );
+            };
+
+            // Now both siblings are black
+            let w_left = get_left_child(tree, w);
+            let w_right = get_right_child(tree, w);
+            let w_left_not_red = w_left == NULL_INDEX || get_metadata(tree, w_left) == RB_BLACK;
+            let w_right_not_red = w_right == NULL_INDEX || get_metadata(tree, w_right) == RB_BLACK;
+            if (w_left_not_red && w_right_not_red) {
+                // case 1, if both of w's child are not red, color it red
+                //            index
+                //           /     \
+                //         child   w (b)
+                set_metadata(tree, w, RB_RED);
+                (true, get_parent(tree, index))
+            } else if (!w_right_not_red) {
+                // case 2, w's right child is red, left rotate at index
+                //           index
+                //         /       \
+                //      child     w(b)
+                //                /  \
+                //               E   D(r)
+                // ----------------
+                //           w ()
+                //         /       \
+                //     index(b)   D(b)
+                //      /    \
+                //    child  E
+                rotate_left(tree, index);
+                set_metadata(tree, w, index_color);
+                set_metadata(tree, index, RB_BLACK);
+                set_metadata(tree, w_right, RB_BLACK);
+                (false, index)
+            } else {
+                // case 3, w's left child is red,
+                // rotate right at w
+                // then treat as case 2, rotate left at index
+                //           index
+                //          /      \
+                //        child       w(b)
+                //                /    \
+                //              wl(r)   D
+                // ---
+                //            index
+                //          /       \
+                //       child     wl(b)
+                //                    \
+                //                   w(r)
+                //                      \
+                //                      D
+                // ---
+                //            wl ()
+                //          /       \
+                //       index (b)  w(b)
+                //      /             \
+                //   child              D
+                rotate_right(tree, w);
+                rotate_left(tree, index);
+                set_metadata(tree, w_left, index_color);
+                set_metadata(tree, index, RB_BLACK);
+                (false, index)
+            }
+        } else {
+            // if sibling (w) is red
+            // rotate right at index.
+            //                index (b)
+            //            /            \
+            //       sibling (r)     child (null or b)
+            //        /      \
+            //      B(b)     D(b)
+            // ---------------
+            //              sibling (b)
+            //             /           \
+            //         B(b)           index(r)
+            //                        /      \
+            //                      D(b)    child(null or b)
+             let sibling_color = get_metadata(tree, w);
+             if (sibling_color == RB_RED) {
+                assert!(
+                    index_color == RB_BLACK,
+                    INVALID_ARGUMENT,
+                );
+
+                rotate_right(tree, index);
+                set_metadata(tree, w, RB_BLACK);
+                set_metadata(tree, index, RB_RED);
+                index_color = RB_RED;
+
+                w = get_left_child(tree, index);
+
+                assert!(
+                    get_metadata(tree, w) == RB_BLACK,
+                    INVALID_ARGUMENT,
+                );
+             };
+
+            // Now both siblings are black
+
+            let w_left = get_left_child(tree, w);
+            let w_right = get_right_child(tree, w);
+            let w_left_not_red = w_left == NULL_INDEX || get_metadata(tree, w_left) == RB_BLACK;
+            let w_right_not_red = w_right == NULL_INDEX || get_metadata(tree, w_right) == RB_BLACK;
+            if (w_left_not_red && w_right_not_red) {
+                // case 1, if both of w's child are not red, color it red
+                //            index
+                //           /     \
+                //        w (b)    child
+                set_metadata(tree, w, RB_RED);
+                (true, get_parent(tree, index))
+            } else if (!w_left_not_red) {
+                // case 2, w's left child is red, right rotate at index
+                //           index
+                //         /       \
+                //      w(b)       child
+                //     /  \
+                //   D(r)  E
+                // ----------------
+                //           w ()
+                //         /       \
+                //      D(b)      index(b)
+                //                /   \
+                //               E   child
+                rotate_right(tree, index);
+                set_metadata(tree, w, index_color);
+                set_metadata(tree, index, RB_BLACK);
+                set_metadata(tree, w_left, RB_BLACK);
+                (false, index)
+            } else {
+                // case 3, w's right child is red,
+                // rotate left at w
+                // then treat as case 2, rotate right at index
+                //           index
+                //          /      \
+                //       w(b)      child
+                //     /    \
+                //    D     wr(r)
+                // ---
+                //            index
+                //          /       \
+                //        wr(b)     child
+                //       /
+                //     w(r)
+                //    /
+                //   D
+                // ---
+                //            wr ()
+                //          /       \
+                //       w (b)   index(b)
+                //      /             \
+                //    D               child
+                rotate_left(tree, w);
+                rotate_right(tree, index);
+                set_metadata(tree, w_right, index_color);
+                set_metadata(tree, index, RB_BLACK);
+                (false, index)
             }
         }
     }
