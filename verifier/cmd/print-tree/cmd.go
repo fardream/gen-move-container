@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -9,12 +8,13 @@ import (
 	"github.com/fardream/gen-move-container/verifier"
 )
 
-var isAvl *bool = flag.Bool("avl", false, "assume the tree is avl, otherwise red/black")
+func RunAMoveTest(isAvl bool) {
+	arg := "_redblack"
+	if isAvl {
+		arg = "_avl"
+	}
 
-func main() {
-	flag.Parse()
-
-	cmd := exec.Command("move", "test")
+	cmd := exec.Command("move", "test", "--filter", arg)
 
 	data, err := cmd.CombinedOutput()
 
@@ -29,7 +29,7 @@ func main() {
 
 	for _, v := range vv {
 		treeType := verifier.TreeType_RedBlack
-		if *isAvl {
+		if isAvl {
 			treeType = verifier.TreeType_Avl
 		}
 		tree := verifier.NewTree(v, treeType)
@@ -38,4 +38,9 @@ func main() {
 		fmt.Printf("--------------------- %d ----------------------\n", len(tree.Entries))
 		tree.Print(os.Stdout)
 	}
+}
+
+func main() {
+	RunAMoveTest(true)
+	RunAMoveTest(false)
 }
