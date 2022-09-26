@@ -1,4 +1,5 @@
 // Tree based on GNU libavl https://adtinfo.org/
+// ordered_tree is one single tree that can be either red/black, avl or vanilla tree.
 module container::ordered_tree {
     use std::vector;
     use std::option::{Self, Option};
