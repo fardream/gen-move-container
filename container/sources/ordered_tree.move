@@ -502,9 +502,7 @@ module container::ordered_tree {
 
             if (tree.root != NULL_INDEX) {
                 let root = tree.root;
-                if (root != NULL_INDEX) {
-                    set_metadata(tree, root, RB_BLACK);
-                }
+                set_metadata(tree, root, RB_BLACK);
             };
         };
 

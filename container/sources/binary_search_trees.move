@@ -449,9 +449,7 @@ module container::red_black_tree {
 
         if (tree.root != NULL_INDEX) {
             let root = tree.root;
-            if (root != NULL_INDEX) {
-                set_metadata(tree, root, RB_BLACK);
-            }
+            set_metadata(tree, root, RB_BLACK);
         };
 
         // swap index for pop out.
