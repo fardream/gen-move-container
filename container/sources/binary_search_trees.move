@@ -57,7 +57,7 @@ module container::red_black_tree {
         }
     }
 
-    /// RedBlackTree contains entries flattened in an array.
+    /// RedBlackTree contains a vector of Entry<V>, which is triple-linked binary search tree.
     struct RedBlackTree<V> has store, copy, drop {
         root: u64,
         entries: vector<Entry<V>>,
@@ -65,10 +65,7 @@ module container::red_black_tree {
         max_index: u64,
     }
 
-    //////////////////
-    // constructors //
-    //////////////////
-
+    /// create new tree
     public fun new<V>(): RedBlackTree<V> {
         RedBlackTree {
             root: NULL_INDEX,
@@ -82,7 +79,7 @@ module container::red_black_tree {
     // Accessors //
     ///////////////
 
-    /// find returns the element index in the bst, or none if not found.
+    /// find returns the element index in the RedBlackTree, or none if not found.
     public fun find<V>(tree: &RedBlackTree<V>, key: u128): Option<u64> {
         let current = tree.root;
 
@@ -101,31 +98,31 @@ module container::red_black_tree {
         option::none()
     }
 
-    /// borrow returns a reference to the element.
-    public fun borrow_at_index<V>(bst: &RedBlackTree<V>, index: u64): (u128, &V) {
-        let entry = vector::borrow(&bst.entries, index);
+    /// borrow returns a reference to the element with its key at the given index
+    public fun borrow_at_index<V>(tree: &RedBlackTree<V>, index: u64): (u128, &V) {
+        let entry = vector::borrow(&tree.entries, index);
         (entry.key, &entry.value)
     }
 
-    /// borrow_mut returns a mutable reference to the element.
-    public fun borrow_at_index_mut<V>(bst: &mut RedBlackTree<V>, index: u64): (u128, &mut V) {
-        let entry = vector::borrow_mut(&mut bst.entries, index);
+    /// borrow_mut returns a mutable reference to the element with its key at the given index
+    public fun borrow_at_index_mut<V>(tree: &mut RedBlackTree<V>, index: u64): (u128, &mut V) {
+        let entry = vector::borrow_mut(&mut tree.entries, index);
         (entry.key, &mut entry.value)
     }
 
-    /// size returns the number of elements in the bst.
+    /// size returns the number of elements in the RedBlackTree.
     public fun size<V>(tree: &RedBlackTree<V>): u64 {
         vector::length(&tree.entries)
     }
 
-    /// empty returns true if the bst is empty.
+    /// empty returns true if the RedBlackTree is empty.
     public fun empty<V>(tree: &RedBlackTree<V>): bool {
         vector::length(&tree.entries) == 0
     }
 
-    /// returns a reference to the bst's entries.
-    public fun borrow_entries<V>(bst: &RedBlackTree<V>): &vector<Entry<V>> {
-        &bst.entries
+    /// returns a reference to the RedBlackTree's entries.
+    public fun borrow_entries<V>(tree: &RedBlackTree<V>): &vector<Entry<V>> {
+        &tree.entries
     }
 
     /// get index of the min of the tree.
@@ -135,6 +132,7 @@ module container::red_black_tree {
         current
     }
 
+    /// get index of the min of the subtree with root at index.
     public fun get_min_index_from<V>(tree: &RedBlackTree<V>, index: u64): u64 {
         let current = index;
         let left_child = get_left_child(tree, current);
@@ -147,12 +145,14 @@ module container::red_black_tree {
         current
     }
 
+    /// get index of the max of the tree.
     public fun get_max_index<V>(tree: &RedBlackTree<V>): u64 {
         let current = tree.max_index;
         assert!(current != NULL_INDEX, current);
         current
     }
 
+    /// get index of the max of the subtree with root at index.
     public fun get_max_index_from<V>(tree: &RedBlackTree<V>, index: u64): u64 {
         let current = index;
         let right_child = get_right_child(tree, current);
@@ -165,7 +165,7 @@ module container::red_black_tree {
         current
     }
 
-    /// find next value in order (increasing)
+    /// find next value in order (the key is increasing)
     public fun next_in_order<V>(tree: &RedBlackTree<V>, index: u64): u64 {
         assert!(index != NULL_INDEX, index);
         let right_child = get_right_child(tree, index);
@@ -235,7 +235,8 @@ module container::red_black_tree {
     // Modifiers //
     ///////////////
 
-    /// insert puts the value keyed at the input keys into the bst.
+    /// insert puts the value keyed at the input keys into the RedBlackTree.
+    /// aborts if the key is already in the tree.
     public fun insert<V>(tree: &mut RedBlackTree<V>, key: u128, value: V) {
         // the max size of the tree is NULL_INDEX.
         assert!(size(tree) < NULL_INDEX, size(tree));
@@ -308,7 +309,7 @@ module container::red_black_tree {
         };
     }
 
-    /// remove deletes and returns the element from the bst.
+    /// remove deletes and returns the element from the RedBlackTree.
     public fun remove<V>(tree: &mut RedBlackTree<V>, index: u64): (u128, V) {
         if (tree.max_index == index) {
             tree.max_index = next_in_reverse_order(tree, index);
@@ -490,6 +491,7 @@ module container::red_black_tree {
         vector::destroy_empty(entries);
     }
 
+    /// get the metadata
     fun get_metadata<V>(tree: &RedBlackTree<V>, index: u64): u8 {
         if (index != NULL_INDEX) {
             vector::borrow(&tree.entries, index).metadata
@@ -498,24 +500,29 @@ module container::red_black_tree {
         }
     }
 
+    /// set the metadata
     fun set_metadata<V>(tree: &mut RedBlackTree<V>, index: u64, metadata: u8) {
         vector::borrow_mut(&mut tree.entries, index).metadata = metadata;
     }
 
+    /// check if index is the right child of parent.
+    /// parent cannot be NULL_INDEX.
     fun is_right_child<V>(tree: &RedBlackTree<V>, index: u64, parent_index: u64): bool {
-        if (parent_index == NULL_INDEX) {
-            std::debug::print_stack_trace();
-        };
         assert!(parent_index != NULL_INDEX, INVALID_ARGUMENT);
         assert!(parent_index < size(tree), INVALID_ARGUMENT);
         vector::borrow(&tree.entries, parent_index).right_child == index
     }
 
+    /// check if index is the left child of parent.
+    /// parent cannot be NULL_INDEX.
     fun is_left_child<V>(tree: &RedBlackTree<V>, index: u64, parent_index: u64): bool {
+        assert!(parent_index != NULL_INDEX, INVALID_ARGUMENT);
+        assert!(parent_index < size(tree), INVALID_ARGUMENT);
         vector::borrow(&tree.entries, parent_index).left_child == index
     }
 
     /// Replace the child of parent if parent_index is not NULL_INDEX.
+    /// also replace parent index of the child.
     fun replace_child<V>(tree: &mut RedBlackTree<V>, parent_index: u64, original_child: u64, new_child: u64) {
         if (parent_index != NULL_INDEX) {
             if (is_right_child(tree, original_child, parent_index)) {
@@ -526,6 +533,8 @@ module container::red_black_tree {
         }
     }
 
+    /// replace left child.
+    /// also replace parent index of the child.
     fun replace_left_child<V>(tree: &mut RedBlackTree<V>, parent_index: u64, new_child: u64) {
         if (parent_index != NULL_INDEX) {
             vector::borrow_mut(&mut tree.entries, parent_index).left_child = new_child;
@@ -535,6 +544,8 @@ module container::red_black_tree {
         }
     }
 
+    /// replace right child.
+    /// also replace parent index of the child.
     fun replace_right_child<V>(tree: &mut RedBlackTree<V>, parent_index: u64, new_child: u64) {
         if (parent_index != NULL_INDEX) {
             vector::borrow_mut(&mut tree.entries, parent_index).right_child = new_child;
@@ -1022,18 +1033,18 @@ module container::red_black_tree {
 
     #[test]
     fun test_redblack() {
-        let bst = new<u128>();
-        insert(&mut bst, 6, 6);
-        insert(&mut bst, 5, 5);
-        insert(&mut bst, 4, 4);
+        let tree = new<u128>();
+        insert(&mut tree, 6, 6);
+        insert(&mut tree, 5, 5);
+        insert(&mut tree, 4, 4);
         let v = vector<Entry<u128>> [
             new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, RB_RED),
             new_entry_for_test<u128>(5, 5, NULL_INDEX, 2, 0, RB_BLACK),
             new_entry_for_test<u128>(4, 4, 1, NULL_INDEX, NULL_INDEX, RB_RED),
         ];
 
-        assert!(bst.root == 1, bst.root);
-        assert!(&bst.entries == &v, 2);
+        assert!(tree.root == 1, tree.root);
+        assert!(&tree.entries == &v, 2);
 
         let v = vector<Entry<u128>> [
             new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, RB_BLACK),
@@ -1042,8 +1053,8 @@ module container::red_black_tree {
             new_entry_for_test<u128>(1, 1, 2, NULL_INDEX, NULL_INDEX, RB_RED),
         ];
 
-        insert(&mut bst, 1, 1);
-        assert!(&bst.entries == &v, 3);
+        insert(&mut tree, 1, 1);
+        assert!(&tree.entries == &v, 3);
 
         let v = vector<Entry<u128>> [
             new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, RB_BLACK),
@@ -1052,8 +1063,8 @@ module container::red_black_tree {
             new_entry_for_test<u128>(1, 1, 4, NULL_INDEX, NULL_INDEX, RB_RED),
             new_entry_for_test<u128>(3, 3, 1, 3, 2, RB_BLACK),
         ];
-        insert(&mut bst, 3, 3);
-        assert!(&bst.entries == &v, 4);
+        insert(&mut tree, 3, 3);
+        assert!(&tree.entries == &v, 4);
 
         let v = vector<Entry<u128>> [
             new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, RB_BLACK),
@@ -1064,24 +1075,24 @@ module container::red_black_tree {
             new_entry_for_test<u128>(2, 2, 3, NULL_INDEX, NULL_INDEX, RB_RED), // 5
         ];
 
-        insert(&mut bst, 2, 2);
-        assert!(&bst.entries == &v, 5);
+        insert(&mut tree, 2, 2);
+        assert!(&tree.entries == &v, 5);
     }
 
     #[test]
     fun test_redblack_reverse() {
-        let bst = new<u128>();
-        insert(&mut bst, 6, 6);
-        insert(&mut bst, 7, 7);
-        insert(&mut bst, 8, 8);
+        let tree = new<u128>();
+        insert(&mut tree, 6, 6);
+        insert(&mut tree, 7, 7);
+        insert(&mut tree, 8, 8);
         let v = vector<Entry<u128>> [
             new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, RB_RED),
             new_entry_for_test<u128>(7, 7, NULL_INDEX, 0, 2, RB_BLACK),
             new_entry_for_test<u128>(8, 8, 1, NULL_INDEX, NULL_INDEX, RB_RED),
         ];
 
-        assert!(bst.root == 1, bst.root);
-        assert!(&bst.entries == &v, 2);
+        assert!(tree.root == 1, tree.root);
+        assert!(&tree.entries == &v, 2);
 
         let v = vector<Entry<u128>> [
             new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, RB_BLACK),
@@ -1090,8 +1101,8 @@ module container::red_black_tree {
             new_entry_for_test<u128>(11, 11, 2, NULL_INDEX, NULL_INDEX, RB_RED),
         ];
 
-        insert(&mut bst, 11, 11);
-        assert!(&bst.entries == &v, 3);
+        insert(&mut tree, 11, 11);
+        assert!(&tree.entries == &v, 3);
 
         let v = vector<Entry<u128>> [
             new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, RB_BLACK),
@@ -1100,8 +1111,8 @@ module container::red_black_tree {
             new_entry_for_test<u128>(11, 11, 4, NULL_INDEX, NULL_INDEX, RB_RED),
             new_entry_for_test<u128>(9, 9, 1, 2, 3, RB_BLACK),
         ];
-        insert(&mut bst, 9, 9);
-        assert!(&bst.entries == &v, 4);
+        insert(&mut tree, 9, 9);
+        assert!(&tree.entries == &v, 4);
 
         let v = vector<Entry<u128>> [
             new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, RB_BLACK),
@@ -1112,130 +1123,130 @@ module container::red_black_tree {
             new_entry_for_test<u128>(10, 10, 3, NULL_INDEX, NULL_INDEX, RB_RED), // 5
         ];
 
-        insert(&mut bst, 10, 10);
-        assert!(&bst.entries == &v, 5);
+        insert(&mut tree, 10, 10);
+        assert!(&tree.entries == &v, 5);
     }
 
     #[test]
     fun test_min_iter_redblack() {
-        let bst = new<u128>();
+        let tree = new<u128>();
         let idx: u128 = 9;
         while (idx > 0) {
             let v = idx * 2;
-            insert(&mut bst, v, v);
+            insert(&mut tree, v, v);
             idx = idx - 1;
         };
 
-        insert(&mut bst, 0, 0);
+        insert(&mut tree, 0, 0);
 
         while (idx < 10) {
             let v = idx * 2 + 1;
-            insert(&mut bst, v, v);
+            insert(&mut tree, v, v);
             idx = idx + 1;
         };
 
         let idx = 0;
         while (idx < 20) {
-            let v = find(&bst, idx);
+            let v = find(&tree, idx);
             idx = idx + 1;
             assert!(option::is_some(&v), (idx as u64));
         };
 
         let idx: u128 = 0;
-        let iter = get_min_index(&bst);
+        let iter = get_min_index(&tree);
         while (idx < 20) {
-            let (_, v) = borrow_at_index(&bst, iter);
+            let (_, v) = borrow_at_index(&tree, iter);
             let v = *v;
             assert!(v == idx, (v as u64));
             idx = idx + 1;
-            iter = next_in_order(&bst, iter);
+            iter = next_in_order(&tree, iter);
         };
 
         assert!(iter == NULL_INDEX, iter);
-        std::debug::print(&bst.entries);
-        let min_index = get_min_index(&bst);
-        remove(&mut bst, min_index);
-        std::debug::print(&bst.entries);
-        let i = find(&bst, 4);
-        remove(&mut bst, std::option::extract(&mut i));
-        std::debug::print(&bst.entries);
-        remove(&mut bst, 12);
-        std::debug::print(&bst.entries);
-        remove(&mut bst, 13);
-        while(!empty(&bst)) {
-            std::debug::print(&bst.entries);
+        std::debug::print(&tree.entries);
+        let min_index = get_min_index(&tree);
+        remove(&mut tree, min_index);
+        std::debug::print(&tree.entries);
+        let i = find(&tree, 4);
+        remove(&mut tree, std::option::extract(&mut i));
+        std::debug::print(&tree.entries);
+        remove(&mut tree, 12);
+        std::debug::print(&tree.entries);
+        remove(&mut tree, 13);
+        while(!empty(&tree)) {
+            std::debug::print(&tree.entries);
 
-            let min_index = get_min_index(&bst);
-            let (key, value) = borrow_at_index(&bst, min_index);
+            let min_index = get_min_index(&tree);
+            let (key, value) = borrow_at_index(&tree, min_index);
             let value = *value;
             assert!(key == value, (key as u64));
-            remove(&mut bst, min_index);
+            remove(&mut tree, min_index);
         };
 
-        std::debug::print(&bst.entries);
+        std::debug::print(&tree.entries);
 
-        destroy_empty(bst);
+        destroy_empty(tree);
     }
 
     #[test]
     fun test_max_iter_redblack() {
-        let bst = new<u128>();
+        let tree = new<u128>();
         let idx: u128 = 9;
         while (idx > 0) {
             let v = idx * 2;
-            insert(&mut bst, v, v);
+            insert(&mut tree, v, v);
             idx = idx - 1;
         };
 
-        insert(&mut bst, 0, 0);
+        insert(&mut tree, 0, 0);
 
         while (idx < 10) {
             let v = idx * 2 + 1;
-            insert(&mut bst, v, v);
+            insert(&mut tree, v, v);
             idx = idx + 1;
         };
 
         let idx = 0;
         while (idx < 20) {
-            let v = find(&bst, idx);
+            let v = find(&tree, idx);
             idx = idx + 1;
             assert!(option::is_some(&v), (idx as u64));
         };
 
         let idx: u128 = 20;
-        let iter = get_max_index(&bst);
+        let iter = get_max_index(&tree);
         while (idx > 0) {
-            let (_, v) = borrow_at_index(&bst, iter);
+            let (_, v) = borrow_at_index(&tree, iter);
             let v = *v;
             assert!(v == idx - 1, (v as u64));
             idx = idx - 1;
-            iter = next_in_reverse_order(&bst, iter);
+            iter = next_in_reverse_order(&tree, iter);
         };
 
         assert!(iter == NULL_INDEX, iter);
-        std::debug::print(&bst.entries);
-        let max_index = get_max_index(&bst);
-        remove(&mut bst, max_index);
-        std::debug::print(&bst.entries);
-        let i = find(&bst, 4);
-        remove(&mut bst, std::option::extract(&mut i));
-        std::debug::print(&bst.entries);
-        remove(&mut bst, 12);
-        std::debug::print(&bst.entries);
-        remove(&mut bst, 13);
-        while(!empty(&bst)) {
-            std::debug::print(&bst.entries);
+        std::debug::print(&tree.entries);
+        let max_index = get_max_index(&tree);
+        remove(&mut tree, max_index);
+        std::debug::print(&tree.entries);
+        let i = find(&tree, 4);
+        remove(&mut tree, std::option::extract(&mut i));
+        std::debug::print(&tree.entries);
+        remove(&mut tree, 12);
+        std::debug::print(&tree.entries);
+        remove(&mut tree, 13);
+        while(!empty(&tree)) {
+            std::debug::print(&tree.entries);
 
-            let max_index = get_max_index(&bst);
-            let (key, value) = borrow_at_index(&bst, max_index);
+            let max_index = get_max_index(&tree);
+            let (key, value) = borrow_at_index(&tree, max_index);
             let value = *value;
             assert!(key == value, (key as u64));
-            remove(&mut bst, max_index);
+            remove(&mut tree, max_index);
         };
 
-        std::debug::print(&bst.entries);
+        std::debug::print(&tree.entries);
 
-        destroy_empty(bst);
+        destroy_empty(tree);
     }
 }
 // Tree based on GNU libavl https://adtinfo.org/
@@ -1300,7 +1311,7 @@ module container::avl_tree {
         }
     }
 
-    /// AvlTree contains entries flattened in an array.
+    /// AvlTree contains a vector of Entry<V>, which is triple-linked binary search tree.
     struct AvlTree<V> has store, copy, drop {
         root: u64,
         entries: vector<Entry<V>>,
@@ -1308,10 +1319,7 @@ module container::avl_tree {
         max_index: u64,
     }
 
-    //////////////////
-    // constructors //
-    //////////////////
-
+    /// create new tree
     public fun new<V>(): AvlTree<V> {
         AvlTree {
             root: NULL_INDEX,
@@ -1325,7 +1333,7 @@ module container::avl_tree {
     // Accessors //
     ///////////////
 
-    /// find returns the element index in the bst, or none if not found.
+    /// find returns the element index in the AvlTree, or none if not found.
     public fun find<V>(tree: &AvlTree<V>, key: u128): Option<u64> {
         let current = tree.root;
 
@@ -1344,31 +1352,31 @@ module container::avl_tree {
         option::none()
     }
 
-    /// borrow returns a reference to the element.
-    public fun borrow_at_index<V>(bst: &AvlTree<V>, index: u64): (u128, &V) {
-        let entry = vector::borrow(&bst.entries, index);
+    /// borrow returns a reference to the element with its key at the given index
+    public fun borrow_at_index<V>(tree: &AvlTree<V>, index: u64): (u128, &V) {
+        let entry = vector::borrow(&tree.entries, index);
         (entry.key, &entry.value)
     }
 
-    /// borrow_mut returns a mutable reference to the element.
-    public fun borrow_at_index_mut<V>(bst: &mut AvlTree<V>, index: u64): (u128, &mut V) {
-        let entry = vector::borrow_mut(&mut bst.entries, index);
+    /// borrow_mut returns a mutable reference to the element with its key at the given index
+    public fun borrow_at_index_mut<V>(tree: &mut AvlTree<V>, index: u64): (u128, &mut V) {
+        let entry = vector::borrow_mut(&mut tree.entries, index);
         (entry.key, &mut entry.value)
     }
 
-    /// size returns the number of elements in the bst.
+    /// size returns the number of elements in the AvlTree.
     public fun size<V>(tree: &AvlTree<V>): u64 {
         vector::length(&tree.entries)
     }
 
-    /// empty returns true if the bst is empty.
+    /// empty returns true if the AvlTree is empty.
     public fun empty<V>(tree: &AvlTree<V>): bool {
         vector::length(&tree.entries) == 0
     }
 
-    /// returns a reference to the bst's entries.
-    public fun borrow_entries<V>(bst: &AvlTree<V>): &vector<Entry<V>> {
-        &bst.entries
+    /// returns a reference to the AvlTree's entries.
+    public fun borrow_entries<V>(tree: &AvlTree<V>): &vector<Entry<V>> {
+        &tree.entries
     }
 
     /// get index of the min of the tree.
@@ -1378,6 +1386,7 @@ module container::avl_tree {
         current
     }
 
+    /// get index of the min of the subtree with root at index.
     public fun get_min_index_from<V>(tree: &AvlTree<V>, index: u64): u64 {
         let current = index;
         let left_child = get_left_child(tree, current);
@@ -1390,12 +1399,14 @@ module container::avl_tree {
         current
     }
 
+    /// get index of the max of the tree.
     public fun get_max_index<V>(tree: &AvlTree<V>): u64 {
         let current = tree.max_index;
         assert!(current != NULL_INDEX, current);
         current
     }
 
+    /// get index of the max of the subtree with root at index.
     public fun get_max_index_from<V>(tree: &AvlTree<V>, index: u64): u64 {
         let current = index;
         let right_child = get_right_child(tree, current);
@@ -1408,7 +1419,7 @@ module container::avl_tree {
         current
     }
 
-    /// find next value in order (increasing)
+    /// find next value in order (the key is increasing)
     public fun next_in_order<V>(tree: &AvlTree<V>, index: u64): u64 {
         assert!(index != NULL_INDEX, index);
         let right_child = get_right_child(tree, index);
@@ -1478,7 +1489,8 @@ module container::avl_tree {
     // Modifiers //
     ///////////////
 
-    /// insert puts the value keyed at the input keys into the bst.
+    /// insert puts the value keyed at the input keys into the AvlTree.
+    /// aborts if the key is already in the tree.
     public fun insert<V>(tree: &mut AvlTree<V>, key: u128, value: V) {
         // the max size of the tree is NULL_INDEX.
         assert!(size(tree) < NULL_INDEX, size(tree));
@@ -1539,7 +1551,7 @@ module container::avl_tree {
         }
     }
 
-    /// remove deletes and returns the element from the bst.
+    /// remove deletes and returns the element from the AvlTree.
     public fun remove<V>(tree: &mut AvlTree<V>, index: u64): (u128, V) {
         if (tree.max_index == index) {
             tree.max_index = next_in_reverse_order(tree, index);
@@ -1716,6 +1728,7 @@ module container::avl_tree {
         vector::destroy_empty(entries);
     }
 
+    /// get the metadata
     fun get_metadata<V>(tree: &AvlTree<V>, index: u64): u8 {
         if (index != NULL_INDEX) {
             vector::borrow(&tree.entries, index).metadata
@@ -1724,24 +1737,29 @@ module container::avl_tree {
         }
     }
 
+    /// set the metadata
     fun set_metadata<V>(tree: &mut AvlTree<V>, index: u64, metadata: u8) {
         vector::borrow_mut(&mut tree.entries, index).metadata = metadata;
     }
 
+    /// check if index is the right child of parent.
+    /// parent cannot be NULL_INDEX.
     fun is_right_child<V>(tree: &AvlTree<V>, index: u64, parent_index: u64): bool {
-        if (parent_index == NULL_INDEX) {
-            std::debug::print_stack_trace();
-        };
         assert!(parent_index != NULL_INDEX, INVALID_ARGUMENT);
         assert!(parent_index < size(tree), INVALID_ARGUMENT);
         vector::borrow(&tree.entries, parent_index).right_child == index
     }
 
+    /// check if index is the left child of parent.
+    /// parent cannot be NULL_INDEX.
     fun is_left_child<V>(tree: &AvlTree<V>, index: u64, parent_index: u64): bool {
+        assert!(parent_index != NULL_INDEX, INVALID_ARGUMENT);
+        assert!(parent_index < size(tree), INVALID_ARGUMENT);
         vector::borrow(&tree.entries, parent_index).left_child == index
     }
 
     /// Replace the child of parent if parent_index is not NULL_INDEX.
+    /// also replace parent index of the child.
     fun replace_child<V>(tree: &mut AvlTree<V>, parent_index: u64, original_child: u64, new_child: u64) {
         if (parent_index != NULL_INDEX) {
             if (is_right_child(tree, original_child, parent_index)) {
@@ -1752,6 +1770,8 @@ module container::avl_tree {
         }
     }
 
+    /// replace left child.
+    /// also replace parent index of the child.
     fun replace_left_child<V>(tree: &mut AvlTree<V>, parent_index: u64, new_child: u64) {
         if (parent_index != NULL_INDEX) {
             vector::borrow_mut(&mut tree.entries, parent_index).left_child = new_child;
@@ -1761,6 +1781,8 @@ module container::avl_tree {
         }
     }
 
+    /// replace right child.
+    /// also replace parent index of the child.
     fun replace_right_child<V>(tree: &mut AvlTree<V>, parent_index: u64, new_child: u64) {
         if (parent_index != NULL_INDEX) {
             vector::borrow_mut(&mut tree.entries, parent_index).right_child = new_child;
@@ -2108,18 +2130,18 @@ module container::avl_tree {
 
     #[test]
     fun test_avl() {
-        let bst = new<u128>();
-        insert(&mut bst, 6, 6);
-        insert(&mut bst, 5, 5);
-        insert(&mut bst, 4, 4);
+        let tree = new<u128>();
+        insert(&mut tree, 6, 6);
+        insert(&mut tree, 5, 5);
+        insert(&mut tree, 4, 4);
         let v = vector<Entry<u128>> [
             new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, AVL_ZERO),
             new_entry_for_test<u128>(5, 5, NULL_INDEX, 2, 0, AVL_ZERO),
             new_entry_for_test<u128>(4, 4, 1, NULL_INDEX, NULL_INDEX, AVL_ZERO),
         ];
 
-        assert!(bst.root == 1, bst.root);
-        assert!(&bst.entries == &v, 2);
+        assert!(tree.root == 1, tree.root);
+        assert!(&tree.entries == &v, 2);
 
         let v = vector<Entry<u128>> [
             new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, AVL_ZERO),
@@ -2129,9 +2151,9 @@ module container::avl_tree {
             new_entry_for_test<u128>(3, 3, 1, 3, 2, AVL_ZERO),
         ];
 
-        insert(&mut bst, 1, 1);
-        insert(&mut bst, 3, 3);
-        assert!(&bst.entries == &v, 3);
+        insert(&mut tree, 1, 1);
+        insert(&mut tree, 3, 3);
+        assert!(&tree.entries == &v, 3);
 
         let v = vector<Entry<u128>> [
             new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, AVL_ZERO), // 0
@@ -2142,24 +2164,24 @@ module container::avl_tree {
             new_entry_for_test<u128>(2, 2, 3, NULL_INDEX, NULL_INDEX, AVL_ZERO), // 5
         ];
 
-        insert(&mut bst, 2, 2);
-        assert!(&bst.entries == &v, 4);
+        insert(&mut tree, 2, 2);
+        assert!(&tree.entries == &v, 4);
     }
 
     #[test]
     fun test_avl_reverse() {
-        let bst = new<u128>();
-        insert(&mut bst, 6, 6);
-        insert(&mut bst, 7, 7);
-        insert(&mut bst, 8, 8);
+        let tree = new<u128>();
+        insert(&mut tree, 6, 6);
+        insert(&mut tree, 7, 7);
+        insert(&mut tree, 8, 8);
         let v = vector<Entry<u128>> [
             new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, AVL_ZERO),
             new_entry_for_test<u128>(7, 7, NULL_INDEX, 0, 2, AVL_ZERO),
             new_entry_for_test<u128>(8, 8, 1, NULL_INDEX, NULL_INDEX, AVL_ZERO),
         ];
 
-        assert!(bst.root == 1, bst.root);
-        assert!(&bst.entries == &v, 2);
+        assert!(tree.root == 1, tree.root);
+        assert!(&tree.entries == &v, 2);
 
         let v = vector<Entry<u128>> [
             new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, AVL_ZERO),
@@ -2169,9 +2191,9 @@ module container::avl_tree {
             new_entry_for_test<u128>(9, 9, 1, 2, 3, AVL_ZERO),
         ];
 
-        insert(&mut bst, 11, 11);
-        insert(&mut bst, 9, 9);
-        assert!(&bst.entries == &v, 3);
+        insert(&mut tree, 11, 11);
+        insert(&mut tree, 9, 9);
+        assert!(&tree.entries == &v, 3);
 
         let v = vector<Entry<u128>> [
             new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, AVL_ZERO), // 0
@@ -2182,130 +2204,130 @@ module container::avl_tree {
             new_entry_for_test<u128>(10, 10, 3, NULL_INDEX, NULL_INDEX, AVL_ZERO), // 5
         ];
 
-        insert(&mut bst, 10, 10);
-        assert!(&bst.entries == &v, 4);
+        insert(&mut tree, 10, 10);
+        assert!(&tree.entries == &v, 4);
     }
 
     #[test]
     fun test_min_iter_avl() {
-        let bst = new<u128>();
+        let tree = new<u128>();
         let idx: u128 = 9;
         while (idx > 0) {
             let v = idx * 2;
-            insert(&mut bst, v, v);
+            insert(&mut tree, v, v);
             idx = idx - 1;
         };
 
-        insert(&mut bst, 0, 0);
+        insert(&mut tree, 0, 0);
 
         while (idx < 10) {
             let v = idx * 2 + 1;
-            insert(&mut bst, v, v);
+            insert(&mut tree, v, v);
             idx = idx + 1;
         };
 
         let idx = 0;
         while (idx < 20) {
-            let v = find(&bst, idx);
+            let v = find(&tree, idx);
             idx = idx + 1;
             assert!(option::is_some(&v), (idx as u64));
         };
 
         let idx: u128 = 0;
-        let iter = get_min_index(&bst);
+        let iter = get_min_index(&tree);
         while (idx < 20) {
-            let (_, v) = borrow_at_index(&bst, iter);
+            let (_, v) = borrow_at_index(&tree, iter);
             let v = *v;
             assert!(v == idx, (v as u64));
             idx = idx + 1;
-            iter = next_in_order(&bst, iter);
+            iter = next_in_order(&tree, iter);
         };
 
         assert!(iter == NULL_INDEX, iter);
-        std::debug::print(&bst.entries);
-        let min_index = get_min_index(&bst);
-        remove(&mut bst, min_index);
-        std::debug::print(&bst.entries);
-        let i = find(&bst, 4);
-        remove(&mut bst, std::option::extract(&mut i));
-        std::debug::print(&bst.entries);
-        remove(&mut bst, 12);
-        std::debug::print(&bst.entries);
-        remove(&mut bst, 13);
-        while(!empty(&bst)) {
-            std::debug::print(&bst.entries);
+        std::debug::print(&tree.entries);
+        let min_index = get_min_index(&tree);
+        remove(&mut tree, min_index);
+        std::debug::print(&tree.entries);
+        let i = find(&tree, 4);
+        remove(&mut tree, std::option::extract(&mut i));
+        std::debug::print(&tree.entries);
+        remove(&mut tree, 12);
+        std::debug::print(&tree.entries);
+        remove(&mut tree, 13);
+        while(!empty(&tree)) {
+            std::debug::print(&tree.entries);
 
-            let min_index = get_min_index(&bst);
-            let (key, value) = borrow_at_index(&bst, min_index);
+            let min_index = get_min_index(&tree);
+            let (key, value) = borrow_at_index(&tree, min_index);
             let value = *value;
             assert!(key == value, (key as u64));
-            remove(&mut bst, min_index);
+            remove(&mut tree, min_index);
         };
 
-        std::debug::print(&bst.entries);
+        std::debug::print(&tree.entries);
 
-        destroy_empty(bst);
+        destroy_empty(tree);
     }
 
 
     #[test]
     fun test_max_iter_avl() {
-        let bst = new<u128>();
+        let tree = new<u128>();
         let idx: u128 = 9;
         while (idx > 0) {
             let v = idx * 2;
-            insert(&mut bst, v, v);
+            insert(&mut tree, v, v);
             idx = idx - 1;
         };
 
-        insert(&mut bst, 0, 0);
+        insert(&mut tree, 0, 0);
 
         while (idx < 10) {
             let v = idx * 2 + 1;
-            insert(&mut bst, v, v);
+            insert(&mut tree, v, v);
             idx = idx + 1;
         };
 
         let idx = 0;
         while (idx < 20) {
-            let v = find(&bst, idx);
+            let v = find(&tree, idx);
             idx = idx + 1;
             assert!(option::is_some(&v), (idx as u64));
         };
 
         let idx: u128 = 20;
-        let iter = get_max_index(&bst);
+        let iter = get_max_index(&tree);
         while (idx > 0) {
-            let (_, v) = borrow_at_index(&bst, iter);
+            let (_, v) = borrow_at_index(&tree, iter);
             let v = *v;
             assert!(v == idx - 1, (v as u64));
             idx = idx - 1;
-            iter = next_in_reverse_order(&bst, iter);
+            iter = next_in_reverse_order(&tree, iter);
         };
 
         assert!(iter == NULL_INDEX, iter);
-        std::debug::print(&bst.entries);
-        let max_index = get_max_index(&bst);
-        remove(&mut bst, max_index);
-        std::debug::print(&bst.entries);
-        let i = find(&bst, 4);
-        remove(&mut bst, std::option::extract(&mut i));
-        std::debug::print(&bst.entries);
-        remove(&mut bst, 12);
-        std::debug::print(&bst.entries);
-        remove(&mut bst, 13);
-        while(!empty(&bst)) {
-            std::debug::print(&bst.entries);
+        std::debug::print(&tree.entries);
+        let max_index = get_max_index(&tree);
+        remove(&mut tree, max_index);
+        std::debug::print(&tree.entries);
+        let i = find(&tree, 4);
+        remove(&mut tree, std::option::extract(&mut i));
+        std::debug::print(&tree.entries);
+        remove(&mut tree, 12);
+        std::debug::print(&tree.entries);
+        remove(&mut tree, 13);
+        while(!empty(&tree)) {
+            std::debug::print(&tree.entries);
 
-            let max_index = get_max_index(&bst);
-            let (key, value) = borrow_at_index(&bst, max_index);
+            let max_index = get_max_index(&tree);
+            let (key, value) = borrow_at_index(&tree, max_index);
             let value = *value;
             assert!(key == value, (key as u64));
-            remove(&mut bst, max_index);
+            remove(&mut tree, max_index);
         };
 
-        std::debug::print(&bst.entries);
+        std::debug::print(&tree.entries);
 
-        destroy_empty(bst);
+        destroy_empty(tree);
     }
 }
