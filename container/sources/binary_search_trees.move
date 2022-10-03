@@ -5,7 +5,7 @@ module container::red_black_tree {
 
     const INVALID_ARGUMENT: u64 = 1;
 
-    // NULL_INDEX is 1 << 63;
+    // NULL_INDEX is 1 << 64 - 1 (all 1s for the 64 bits);
     const NULL_INDEX: u64 = 18446744073709551615;
 
     // check if the index is NULL_INDEX
@@ -1256,7 +1256,7 @@ module container::avl_tree {
 
     const INVALID_ARGUMENT: u64 = 1;
 
-    // NULL_INDEX is 1 << 63;
+    // NULL_INDEX is 1 << 64 - 1 (all 1s for the 64 bits);
     const NULL_INDEX: u64 = 18446744073709551615;
 
     // check if the index is NULL_INDEX
