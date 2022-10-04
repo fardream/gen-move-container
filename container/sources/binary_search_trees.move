@@ -3,7 +3,7 @@ module container::red_black_tree {
     use std::vector;
     use std::option::{Self, Option};
 
-    const INVALID_ARGUMENT: u64 = 1;
+    const E_INVALID_ARGUMENT: u64 = 1;
 
     // NULL_INDEX is 1 << 64 - 1 (all 1s for the 64 bits);
     const NULL_INDEX: u64 = 18446744073709551615;
@@ -254,7 +254,7 @@ module container::red_black_tree {
 
         while (insert != NULL_INDEX) {
             let insert_node = vector::borrow(&tree.entries, insert);
-            assert!(insert_node.key != key, INVALID_ARGUMENT);
+            assert!(insert_node.key != key, E_INVALID_ARGUMENT);
             parent = insert;
             is_right_child = insert_node.key < key;
             insert = if (is_right_child) {
@@ -491,23 +491,23 @@ module container::red_black_tree {
     /// destroys the tree if it's empty.
     public fun destroy_empty<V>(tree: RedBlackTree<V>) {
         let RedBlackTree { entries, root: _, min_index: _, max_index: _ } = tree;
-        assert!(vector::is_empty(&entries), INVALID_ARGUMENT);
+        assert!(vector::is_empty(&entries), E_INVALID_ARGUMENT);
         vector::destroy_empty(entries);
     }
 
     /// check if index is the right child of parent.
     /// parent cannot be NULL_INDEX.
     fun is_right_child<V>(tree: &RedBlackTree<V>, index: u64, parent_index: u64): bool {
-        assert!(parent_index != NULL_INDEX, INVALID_ARGUMENT);
-        assert!(parent_index < size(tree), INVALID_ARGUMENT);
+        assert!(parent_index != NULL_INDEX, E_INVALID_ARGUMENT);
+        assert!(parent_index < size(tree), E_INVALID_ARGUMENT);
         vector::borrow(&tree.entries, parent_index).right_child == index
     }
 
     /// check if index is the left child of parent.
     /// parent cannot be NULL_INDEX.
     fun is_left_child<V>(tree: &RedBlackTree<V>, index: u64, parent_index: u64): bool {
-        assert!(parent_index != NULL_INDEX, INVALID_ARGUMENT);
-        assert!(parent_index < size(tree), INVALID_ARGUMENT);
+        assert!(parent_index != NULL_INDEX, E_INVALID_ARGUMENT);
+        assert!(parent_index < size(tree), E_INVALID_ARGUMENT);
         vector::borrow(&tree.entries, parent_index).left_child == index
     }
 
@@ -567,7 +567,7 @@ module container::red_black_tree {
         let left = node.left_child;
         assert!(
             left != NULL_INDEX,
-            INVALID_ARGUMENT
+            E_INVALID_ARGUMENT
         );
         let y = vector::borrow(&tree.entries, left).right_child;
 
@@ -600,7 +600,7 @@ module container::red_black_tree {
         let right = node.right_child;
         assert!(
             right != NULL_INDEX,
-            INVALID_ARGUMENT,
+            E_INVALID_ARGUMENT,
         );
         let x = vector::borrow(&tree.entries, right).left_child;
 
@@ -629,7 +629,7 @@ module container::red_black_tree {
         // make sure the index right now is red
         assert!(
             node.metadata == RB_RED,
-            INVALID_ARGUMENT,
+            E_INVALID_ARGUMENT,
         );
 
         // get the red child.
@@ -641,7 +641,7 @@ module container::red_black_tree {
 
         assert!(
             vector::borrow(&tree.entries, red_child).metadata == RB_RED,
-            INVALID_ARGUMENT,
+            E_INVALID_ARGUMENT,
         );
 
         // get the parent
@@ -649,12 +649,12 @@ module container::red_black_tree {
         let parent = node.parent;
         assert!(
             parent != NULL_INDEX,
-            INVALID_ARGUMENT,
+            E_INVALID_ARGUMENT,
         );
 
         assert!(
             vector::borrow(&tree.entries, parent).metadata == RB_BLACK,
-            INVALID_ARGUMENT,
+            E_INVALID_ARGUMENT,
         );
 
         let is_index_right = is_right_child(tree, index, parent);
@@ -797,7 +797,7 @@ module container::red_black_tree {
         };
 
         let index_color = node.metadata;
-        
+
         if (child != NULL_INDEX && vector::borrow(&tree.entries, child).metadata == RB_RED) {
             vector::borrow_mut(&mut tree.entries, child).metadata = RB_BLACK;
             return (false, index)
@@ -811,7 +811,7 @@ module container::red_black_tree {
 
         assert!(
             w != NULL_INDEX,
-            INVALID_ARGUMENT,
+            E_INVALID_ARGUMENT,
         );
         if (!is_right) {
             // if sibling (w) is red
@@ -831,7 +831,7 @@ module container::red_black_tree {
             if (sibling_color == RB_RED) {
                 assert!(
                     index_color == RB_BLACK,
-                    INVALID_ARGUMENT,
+                    E_INVALID_ARGUMENT,
                 );
 
                 rotate_left(tree, index);
@@ -842,7 +842,7 @@ module container::red_black_tree {
                 w = vector::borrow(&tree.entries, index).right_child;
                 assert!(
                     vector::borrow(&tree.entries, w).metadata == RB_BLACK,
-                    INVALID_ARGUMENT,
+                    E_INVALID_ARGUMENT,
                 );
             };
 
@@ -924,7 +924,7 @@ module container::red_black_tree {
              if (sibling_color == RB_RED) {
                 assert!(
                     index_color == RB_BLACK,
-                    INVALID_ARGUMENT,
+                    E_INVALID_ARGUMENT,
                 );
 
                 rotate_right(tree, index);
@@ -936,7 +936,7 @@ module container::red_black_tree {
 
                 assert!(
                     vector::borrow(&tree.entries, w).metadata == RB_BLACK,
-                    INVALID_ARGUMENT,
+                    E_INVALID_ARGUMENT,
                 );
              };
 
@@ -1226,7 +1226,7 @@ module container::avl_tree {
     use std::vector;
     use std::option::{Self, Option};
 
-    const INVALID_ARGUMENT: u64 = 1;
+    const E_INVALID_ARGUMENT: u64 = 1;
 
     // NULL_INDEX is 1 << 64 - 1 (all 1s for the 64 bits);
     const NULL_INDEX: u64 = 18446744073709551615;
@@ -1480,7 +1480,7 @@ module container::avl_tree {
 
         while (insert != NULL_INDEX) {
             let insert_node = vector::borrow(&tree.entries, insert);
-            assert!(insert_node.key != key, INVALID_ARGUMENT);
+            assert!(insert_node.key != key, E_INVALID_ARGUMENT);
             parent = insert;
             is_right_child = insert_node.key < key;
             insert = if (is_right_child) {
@@ -1700,23 +1700,23 @@ module container::avl_tree {
     /// destroys the tree if it's empty.
     public fun destroy_empty<V>(tree: AvlTree<V>) {
         let AvlTree { entries, root: _, min_index: _, max_index: _ } = tree;
-        assert!(vector::is_empty(&entries), INVALID_ARGUMENT);
+        assert!(vector::is_empty(&entries), E_INVALID_ARGUMENT);
         vector::destroy_empty(entries);
     }
 
     /// check if index is the right child of parent.
     /// parent cannot be NULL_INDEX.
     fun is_right_child<V>(tree: &AvlTree<V>, index: u64, parent_index: u64): bool {
-        assert!(parent_index != NULL_INDEX, INVALID_ARGUMENT);
-        assert!(parent_index < size(tree), INVALID_ARGUMENT);
+        assert!(parent_index != NULL_INDEX, E_INVALID_ARGUMENT);
+        assert!(parent_index < size(tree), E_INVALID_ARGUMENT);
         vector::borrow(&tree.entries, parent_index).right_child == index
     }
 
     /// check if index is the left child of parent.
     /// parent cannot be NULL_INDEX.
     fun is_left_child<V>(tree: &AvlTree<V>, index: u64, parent_index: u64): bool {
-        assert!(parent_index != NULL_INDEX, INVALID_ARGUMENT);
-        assert!(parent_index < size(tree), INVALID_ARGUMENT);
+        assert!(parent_index != NULL_INDEX, E_INVALID_ARGUMENT);
+        assert!(parent_index < size(tree), E_INVALID_ARGUMENT);
         vector::borrow(&tree.entries, parent_index).left_child == index
     }
 
@@ -1776,7 +1776,7 @@ module container::avl_tree {
         let left = node.left_child;
         assert!(
             left != NULL_INDEX,
-            INVALID_ARGUMENT
+            E_INVALID_ARGUMENT
         );
         let y = vector::borrow(&tree.entries, left).right_child;
 
@@ -1809,7 +1809,7 @@ module container::avl_tree {
         let right = node.right_child;
         assert!(
             right != NULL_INDEX,
-            INVALID_ARGUMENT,
+            E_INVALID_ARGUMENT,
         );
         let x = vector::borrow(&tree.entries, right).left_child;
 
@@ -1878,7 +1878,7 @@ module container::avl_tree {
         vector::borrow_mut(&mut tree.entries, index).metadata = new_metadata;
 
         let (decreased, new_index) = avl_rebalance(tree, index, false);
-        assert!(decreased, INVALID_ARGUMENT);
+        assert!(decreased, E_INVALID_ARGUMENT);
 
         (false, new_index)
     }
@@ -1941,7 +1941,7 @@ module container::avl_tree {
         let node = vector::borrow(&tree.entries, index);
         let metadata = node.metadata;
 
-        assert!(metadata == AVL_LEFT_HIGH_2 || metadata == AVL_RIGHT_HIGH_2, INVALID_ARGUMENT);
+        assert!(metadata == AVL_LEFT_HIGH_2 || metadata == AVL_RIGHT_HIGH_2, E_INVALID_ARGUMENT);
 
 
         let left_child = node.left_child;
@@ -1951,8 +1951,8 @@ module container::avl_tree {
             // left subtree is higher
             let left_metadata = vector::borrow(&tree.entries, left_child).metadata;
 
-            assert!(left_metadata != AVL_RIGHT_HIGH_2 && left_metadata != AVL_LEFT_HIGH_2, INVALID_ARGUMENT);
-            assert!(is_remove || left_metadata != AVL_ZERO, INVALID_ARGUMENT);
+            assert!(left_metadata != AVL_RIGHT_HIGH_2 && left_metadata != AVL_LEFT_HIGH_2, E_INVALID_ARGUMENT);
+            assert!(is_remove || left_metadata != AVL_ZERO, E_INVALID_ARGUMENT);
 
             if (left_metadata != AVL_RIGHT_HIGH) {
                 // case 1:
@@ -2010,8 +2010,8 @@ module container::avl_tree {
         } else {
             let right_metadata = vector::borrow(&tree.entries, right_child).metadata;
 
-            assert!(right_metadata != AVL_RIGHT_HIGH_2 && right_metadata != AVL_LEFT_HIGH_2, INVALID_ARGUMENT);
-            assert!(is_remove || right_metadata != AVL_ZERO, INVALID_ARGUMENT);
+            assert!(right_metadata != AVL_RIGHT_HIGH_2 && right_metadata != AVL_LEFT_HIGH_2, E_INVALID_ARGUMENT);
+            assert!(is_remove || right_metadata != AVL_ZERO, E_INVALID_ARGUMENT);
 
             if (right_metadata != AVL_LEFT_HIGH) {
                 // case 1:
