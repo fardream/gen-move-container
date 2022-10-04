@@ -135,11 +135,11 @@ module container::red_black_tree {
     /// get index of the min of the subtree with root at index.
     public fun get_min_index_from<V>(tree: &RedBlackTree<V>, index: u64): u64 {
         let current = index;
-        let left_child = get_left_child(tree, current);
+        let left_child = vector::borrow(&tree.entries, current).left_child;
 
         while (left_child != NULL_INDEX) {
             current = left_child;
-            left_child = get_left_child(tree, current);
+            left_child = vector::borrow(&tree.entries, current).left_child;
         };
 
         current
@@ -155,11 +155,11 @@ module container::red_black_tree {
     /// get index of the max of the subtree with root at index.
     public fun get_max_index_from<V>(tree: &RedBlackTree<V>, index: u64): u64 {
         let current = index;
-        let right_child = get_right_child(tree, current);
+        let right_child = vector::borrow(&tree.entries, current).right_child;
 
         while (right_child != NULL_INDEX) {
             current = right_child;
-            right_child = get_right_child(tree, current);
+            right_child = vector::borrow(&tree.entries, current).right_child;
         };
 
         current
@@ -168,17 +168,18 @@ module container::red_black_tree {
     /// find next value in order (the key is increasing)
     public fun next_in_order<V>(tree: &RedBlackTree<V>, index: u64): u64 {
         assert!(index != NULL_INDEX, index);
-        let right_child = get_right_child(tree, index);
-        let parent = get_parent(tree, index);
+        let node = vector::borrow(&tree.entries, index);
+        let right_child = node.right_child;
+        let parent = node.parent;
 
         if (right_child != NULL_INDEX) {
             // first, check if right child is null.
             // then go to right child, and check if there is left child.
             let next = right_child;
-            let next_left = get_left_child(tree, next);
+            let next_left = vector::borrow(&tree.entries, next).left_child;
             while (next_left != NULL_INDEX) {
                 next = next_left;
-                next_left = get_left_child(tree, next);
+                next_left = vector::borrow(&tree.entries, next).left_child;
             };
 
            next
@@ -189,7 +190,7 @@ module container::red_black_tree {
             let current = index;
             while(parent != NULL_INDEX && is_right_child(tree, current, parent)) {
                 current = parent;
-                parent = get_parent(tree, current);
+                parent = vector::borrow(&tree.entries, current).parent;
             };
 
             parent
@@ -201,17 +202,17 @@ module container::red_black_tree {
     /// find next value in reverse order (the key is decreasing)
     public fun next_in_reverse_order<V>(tree: &RedBlackTree<V>, index: u64): u64 {
         assert!(index != NULL_INDEX, index);
-        let left_child = get_left_child(tree, index);
-        let parent = get_parent(tree, index);
-
+        let node = vector::borrow(&tree.entries, index);
+        let left_child = node.left_child;
+        let parent = node.parent;
         if (left_child != NULL_INDEX) {
             // first, check if left child is null.
             // then go to left child, and check if there is right child.
             let next = left_child;
-            let next_right = get_right_child(tree, next);
+            let next_right = vector::borrow(&tree.entries, next).right_child;
             while (next_right != NULL_INDEX) {
                 next = next_right;
-                next_right = get_right_child(tree, next);
+                next_right = vector::borrow(&tree.entries, next).right_child;
             };
 
            next
@@ -222,7 +223,7 @@ module container::red_black_tree {
             let current = index;
             while(parent != NULL_INDEX && is_left_child(tree, current, parent)) {
                 current = parent;
-                parent = get_parent(tree, current);
+                parent = vector::borrow(&tree.entries, current).parent;
             };
 
             parent
@@ -295,7 +296,7 @@ module container::red_black_tree {
             if (parent_metadata == RB_BLACK) {
                 break
             };
-            let new_parent = get_parent(tree, parent);
+            let new_parent = vector::borrow(&tree.entries, parent).parent;
             if (new_parent == NULL_INDEX) {
                 break
             };
@@ -318,9 +319,10 @@ module container::red_black_tree {
             tree.min_index = next_in_order(tree, index);
         };
 
-        let parent = get_parent(tree, index);
-        let left_child = get_left_child(tree, index);
-        let right_child = get_right_child(tree, index);
+        let node = vector::borrow(&tree.entries, index);
+        let parent = node.parent;
+        let left_child = node.left_child;
+        let right_child = node.right_child;
         let is_right = if (parent != NULL_INDEX) {
             is_right_child(tree, index, parent)
         } else {
@@ -365,7 +367,7 @@ module container::red_black_tree {
             };
             (parent, is_right)
         } else {
-            let right_child_s_left = get_left_child(tree, right_child);
+            let right_child_s_left = vector::borrow(&tree.entries, right_child).left_child;
             if (right_child_s_left == NULL_INDEX) {
                 // right child is not null, and right child's left child is null
                 //              index
@@ -412,8 +414,9 @@ module container::red_black_tree {
                 //                     /
                 //                    a
                 let next_successor = get_min_index_from(tree, right_child_s_left);
-                let successor_parent = get_parent(tree, next_successor);
-                let next_successor_right = get_right_child(tree, next_successor);
+                let next_successor_node = vector::borrow(&tree.entries, next_successor);
+                let successor_parent = next_successor_node.parent;
+                let next_successor_right = next_successor_node.right_child;
 
                 replace_left_child(tree, successor_parent, next_successor_right);
                 replace_left_child(tree, next_successor, left_child);
@@ -466,9 +469,10 @@ module container::red_black_tree {
             if (tree.min_index == last_index) {
                 tree.min_index = index;
             };
-            let parent = get_parent(tree, index);
-            let left_child = get_left_child(tree, index);
-            let right_child = get_right_child(tree, index);
+            let node = vector::borrow(&tree.entries, index);
+            let parent = node.parent;
+            let left_child = node.left_child;
+            let right_child = node.right_child;
             replace_child(tree, parent, last_index, index);
             replace_parent(tree, left_child, index);
             replace_parent(tree, right_child, index);
@@ -562,32 +566,6 @@ module container::red_black_tree {
         }
     }
 
-    /// get parent
-    fun get_parent<V>(tree: &RedBlackTree<V>, index: u64): u64 {
-        if (index != NULL_INDEX) {
-            vector::borrow(&tree.entries, index).parent
-        } else {
-            NULL_INDEX
-        }
-    }
-
-    /// get left child
-    fun get_left_child<V>(tree: &RedBlackTree<V>, index: u64): u64 {
-        if (index != NULL_INDEX) {
-            vector::borrow(&tree.entries, index).left_child
-        } else {
-            NULL_INDEX
-        }
-    }
-
-    /// get right child.
-    fun get_right_child<V>(tree: &RedBlackTree<V>, index: u64): u64 {
-        if (index != NULL_INDEX) {
-            vector::borrow(&tree.entries, index).right_child
-        } else {
-            NULL_INDEX
-        }
-    }
 
     /// rotate_right (clockwise rotate)
     /// -----------------------------------------------------
@@ -599,14 +577,15 @@ module container::red_black_tree {
     ///              x          index
     ///                       y       right
     fun rotate_right<V>(tree: &mut RedBlackTree<V>, index: u64) {
-        let left = get_left_child(tree, index);
+        let node = vector::borrow(&tree.entries, index);
+        let left = node.left_child;
         assert!(
             left != NULL_INDEX,
             INVALID_ARGUMENT
         );
-        let y = get_right_child(tree, left);
+        let y = vector::borrow(&tree.entries, left).right_child;
 
-        let parent = get_parent(tree, index);
+        let parent = node.parent;
 
         // update index
         replace_left_child(tree, index, y);
@@ -631,14 +610,15 @@ module container::red_black_tree {
     ///          index             y
     ///      left        x
     fun rotate_left<V>(tree: &mut RedBlackTree<V>, index: u64) {
-        let right = get_right_child(tree, index);
+        let node = vector::borrow(&tree.entries, index);
+        let right = node.right_child;
         assert!(
             right != NULL_INDEX,
             INVALID_ARGUMENT,
         );
-        let x = get_left_child(tree, right);
+        let x = vector::borrow(&tree.entries, right).left_child;
 
-        let parent = get_parent(tree, index);
+        let parent = node.parent;
 
         // update index
         replace_right_child(tree, index, x);
@@ -665,11 +645,12 @@ module container::red_black_tree {
             INVALID_ARGUMENT,
         );
 
+        let node = vector::borrow(&tree.entries, index);
         // get the red child.
         let red_child = if (is_right) {
-            get_right_child(tree, index)
+            node.right_child
         } else {
-            get_left_child(tree, index)
+            node.left_child
         };
 
         assert!(
@@ -679,7 +660,7 @@ module container::red_black_tree {
 
         // get the parent
         // since index is red, the parent must be black
-        let parent = get_parent(tree, index);
+        let parent = node.parent;
         assert!(
             parent != NULL_INDEX,
             INVALID_ARGUMENT,
@@ -695,7 +676,7 @@ module container::red_black_tree {
         if (!is_index_right) {
             // index is the left child of parent
             //
-            let uncle = get_right_child(tree, parent);
+            let uncle = vector::borrow(&tree.entries, parent).right_child;
             if (uncle != NULL_INDEX && get_metadata(tree, uncle) == RB_RED) {
                 // case 1, uncle is red
                 // recolor parent, index, and uncle.
@@ -750,7 +731,7 @@ module container::red_black_tree {
                 red_child
             }
         } else {
-            let uncle = get_left_child(tree, parent);
+            let uncle = vector::borrow(&tree.entries, parent).left_child;
             if (uncle != NULL_INDEX && get_metadata(tree, uncle) == RB_RED) {
                 // case 1, uncle is red
                 // recolor parent, index, and uncle.
@@ -814,13 +795,23 @@ module container::red_black_tree {
             return (false, index)
         };
 
+        let node = vector::borrow(&tree.entries, index);
         // get the new child.
         let child = if (is_right) {
-            get_right_child(tree, index)
+            node.right_child
         } else {
-            get_left_child(tree, index)
+            node.left_child
         };
 
+        // sibling
+        let w = if (is_right) {
+            node.left_child
+        } else {
+            node.right_child
+        };
+
+        let index_color = node.metadata;
+        
         if (child != NULL_INDEX && get_metadata(tree, child) == RB_RED) {
             set_metadata(tree, child, RB_BLACK);
             return (false, index)
@@ -831,13 +822,7 @@ module container::red_black_tree {
         // so the sibling must has at least one black node.
         // therefore sibling must exist.
         // w is sibling
-        let w = if (is_right) {
-            get_left_child(tree, index)
-        } else {
-            get_right_child(tree, index)
-        };
 
-        let index_color = get_metadata(tree, index);
         assert!(
             w != NULL_INDEX,
             INVALID_ARGUMENT,
@@ -868,7 +853,7 @@ module container::red_black_tree {
                 set_metadata(tree, index, RB_RED);
                 index_color = RB_RED;
 
-                w = get_right_child(tree, index);
+                w = vector::borrow(&tree.entries, index).right_child;
                 assert!(
                     get_metadata(tree, w) == RB_BLACK,
                     INVALID_ARGUMENT,
@@ -876,8 +861,9 @@ module container::red_black_tree {
             };
 
             // Now both siblings are black
-            let w_left = get_left_child(tree, w);
-            let w_right = get_right_child(tree, w);
+            let w_node = vector::borrow(&tree.entries, w);
+            let w_left = w_node.left_child;
+            let w_right = w_node.right_child;
             let w_left_not_red = w_left == NULL_INDEX || get_metadata(tree, w_left) == RB_BLACK;
             let w_right_not_red = w_right == NULL_INDEX || get_metadata(tree, w_right) == RB_BLACK;
             if (w_left_not_red && w_right_not_red) {
@@ -886,7 +872,7 @@ module container::red_black_tree {
                 //           /     \
                 //         child   w (b)
                 set_metadata(tree, w, RB_RED);
-                (true, get_parent(tree, index))
+                (true, vector::borrow(&tree.entries, index).parent)
             } else if (!w_right_not_red) {
                 // case 2, w's right child is red, left rotate at index
                 //           index
@@ -960,7 +946,7 @@ module container::red_black_tree {
                 set_metadata(tree, index, RB_RED);
                 index_color = RB_RED;
 
-                w = get_left_child(tree, index);
+                w = vector::borrow(&tree.entries, index).left_child;
 
                 assert!(
                     get_metadata(tree, w) == RB_BLACK,
@@ -969,9 +955,9 @@ module container::red_black_tree {
              };
 
             // Now both siblings are black
-
-            let w_left = get_left_child(tree, w);
-            let w_right = get_right_child(tree, w);
+            let w_node = vector::borrow(&tree.entries, w);
+            let w_left = w_node.left_child;
+            let w_right = w_node.right_child;
             let w_left_not_red = w_left == NULL_INDEX || get_metadata(tree, w_left) == RB_BLACK;
             let w_right_not_red = w_right == NULL_INDEX || get_metadata(tree, w_right) == RB_BLACK;
             if (w_left_not_red && w_right_not_red) {
@@ -980,7 +966,7 @@ module container::red_black_tree {
                 //           /     \
                 //        w (b)    child
                 set_metadata(tree, w, RB_RED);
-                (true, get_parent(tree, index))
+                (true, vector::borrow(&tree.entries, index).parent)
             } else if (!w_left_not_red) {
                 // case 2, w's left child is red, right rotate at index
                 //           index
@@ -1389,11 +1375,11 @@ module container::avl_tree {
     /// get index of the min of the subtree with root at index.
     public fun get_min_index_from<V>(tree: &AvlTree<V>, index: u64): u64 {
         let current = index;
-        let left_child = get_left_child(tree, current);
+        let left_child = vector::borrow(&tree.entries, current).left_child;
 
         while (left_child != NULL_INDEX) {
             current = left_child;
-            left_child = get_left_child(tree, current);
+            left_child = vector::borrow(&tree.entries, current).left_child;
         };
 
         current
@@ -1409,11 +1395,11 @@ module container::avl_tree {
     /// get index of the max of the subtree with root at index.
     public fun get_max_index_from<V>(tree: &AvlTree<V>, index: u64): u64 {
         let current = index;
-        let right_child = get_right_child(tree, current);
+        let right_child = vector::borrow(&tree.entries, current).right_child;
 
         while (right_child != NULL_INDEX) {
             current = right_child;
-            right_child = get_right_child(tree, current);
+            right_child = vector::borrow(&tree.entries, current).right_child;
         };
 
         current
@@ -1422,17 +1408,18 @@ module container::avl_tree {
     /// find next value in order (the key is increasing)
     public fun next_in_order<V>(tree: &AvlTree<V>, index: u64): u64 {
         assert!(index != NULL_INDEX, index);
-        let right_child = get_right_child(tree, index);
-        let parent = get_parent(tree, index);
+        let node = vector::borrow(&tree.entries, index);
+        let right_child = node.right_child;
+        let parent = node.parent;
 
         if (right_child != NULL_INDEX) {
             // first, check if right child is null.
             // then go to right child, and check if there is left child.
             let next = right_child;
-            let next_left = get_left_child(tree, next);
+            let next_left = vector::borrow(&tree.entries, next).left_child;
             while (next_left != NULL_INDEX) {
                 next = next_left;
-                next_left = get_left_child(tree, next);
+                next_left = vector::borrow(&tree.entries, next).left_child;
             };
 
            next
@@ -1443,7 +1430,7 @@ module container::avl_tree {
             let current = index;
             while(parent != NULL_INDEX && is_right_child(tree, current, parent)) {
                 current = parent;
-                parent = get_parent(tree, current);
+                parent = vector::borrow(&tree.entries, current).parent;
             };
 
             parent
@@ -1455,17 +1442,17 @@ module container::avl_tree {
     /// find next value in reverse order (the key is decreasing)
     public fun next_in_reverse_order<V>(tree: &AvlTree<V>, index: u64): u64 {
         assert!(index != NULL_INDEX, index);
-        let left_child = get_left_child(tree, index);
-        let parent = get_parent(tree, index);
-
+        let node = vector::borrow(&tree.entries, index);
+        let left_child = node.left_child;
+        let parent = node.parent;
         if (left_child != NULL_INDEX) {
             // first, check if left child is null.
             // then go to left child, and check if there is right child.
             let next = left_child;
-            let next_right = get_right_child(tree, next);
+            let next_right = vector::borrow(&tree.entries, next).right_child;
             while (next_right != NULL_INDEX) {
                 next = next_right;
-                next_right = get_right_child(tree, next);
+                next_right = vector::borrow(&tree.entries, next).right_child;
             };
 
            next
@@ -1476,7 +1463,7 @@ module container::avl_tree {
             let current = index;
             while(parent != NULL_INDEX && is_left_child(tree, current, parent)) {
                 current = parent;
-                parent = get_parent(tree, current);
+                parent = vector::borrow(&tree.entries, current).parent;
             };
 
             parent
@@ -1543,7 +1530,7 @@ module container::avl_tree {
             if (!increased) {
                 break
             };
-            parent = get_parent(tree, new_parent);
+            parent = vector::borrow(&tree.entries, new_parent).parent;
             if (parent == NULL_INDEX) {
                 break
             };
@@ -1560,9 +1547,10 @@ module container::avl_tree {
             tree.min_index = next_in_order(tree, index);
         };
 
-        let parent = get_parent(tree, index);
-        let left_child = get_left_child(tree, index);
-        let right_child = get_right_child(tree, index);
+        let node = vector::borrow(&tree.entries, index);
+        let parent = node.parent;
+        let left_child = node.left_child;
+        let right_child = node.right_child;
         let is_right = if (parent != NULL_INDEX) {
             is_right_child(tree, index, parent)
         } else {
@@ -1607,7 +1595,7 @@ module container::avl_tree {
             };
             (parent, is_right)
         } else {
-            let right_child_s_left = get_left_child(tree, right_child);
+            let right_child_s_left = vector::borrow(&tree.entries, right_child).left_child;
             if (right_child_s_left == NULL_INDEX) {
                 // right child is not null, and right child's left child is null
                 //              index
@@ -1654,8 +1642,9 @@ module container::avl_tree {
                 //                     /
                 //                    a
                 let next_successor = get_min_index_from(tree, right_child_s_left);
-                let successor_parent = get_parent(tree, next_successor);
-                let next_successor_right = get_right_child(tree, next_successor);
+                let next_successor_node = vector::borrow(&tree.entries, next_successor);
+                let successor_parent = next_successor_node.parent;
+                let next_successor_right = next_successor_node.right_child;
 
                 replace_left_child(tree, successor_parent, next_successor_right);
                 replace_left_child(tree, next_successor, left_child);
@@ -1682,7 +1671,7 @@ module container::avl_tree {
             if (!decreased) {
                 break
             };
-            rebalance_start = get_parent(tree, new_start);
+            rebalance_start = vector::borrow(&tree.entries, new_start).parent;
             if (rebalance_start == NULL_INDEX) {
                 break
             };
@@ -1703,9 +1692,10 @@ module container::avl_tree {
             if (tree.min_index == last_index) {
                 tree.min_index = index;
             };
-            let parent = get_parent(tree, index);
-            let left_child = get_left_child(tree, index);
-            let right_child = get_right_child(tree, index);
+            let node = vector::borrow(&tree.entries, index);
+            let parent = node.parent;
+            let left_child = node.left_child;
+            let right_child = node.right_child;
             replace_child(tree, parent, last_index, index);
             replace_parent(tree, left_child, index);
             replace_parent(tree, right_child, index);
@@ -1799,32 +1789,6 @@ module container::avl_tree {
         }
     }
 
-    /// get parent
-    fun get_parent<V>(tree: &AvlTree<V>, index: u64): u64 {
-        if (index != NULL_INDEX) {
-            vector::borrow(&tree.entries, index).parent
-        } else {
-            NULL_INDEX
-        }
-    }
-
-    /// get left child
-    fun get_left_child<V>(tree: &AvlTree<V>, index: u64): u64 {
-        if (index != NULL_INDEX) {
-            vector::borrow(&tree.entries, index).left_child
-        } else {
-            NULL_INDEX
-        }
-    }
-
-    /// get right child.
-    fun get_right_child<V>(tree: &AvlTree<V>, index: u64): u64 {
-        if (index != NULL_INDEX) {
-            vector::borrow(&tree.entries, index).right_child
-        } else {
-            NULL_INDEX
-        }
-    }
 
     /// rotate_right (clockwise rotate)
     /// -----------------------------------------------------
@@ -1836,14 +1800,15 @@ module container::avl_tree {
     ///              x          index
     ///                       y       right
     fun rotate_right<V>(tree: &mut AvlTree<V>, index: u64) {
-        let left = get_left_child(tree, index);
+        let node = vector::borrow(&tree.entries, index);
+        let left = node.left_child;
         assert!(
             left != NULL_INDEX,
             INVALID_ARGUMENT
         );
-        let y = get_right_child(tree, left);
+        let y = vector::borrow(&tree.entries, left).right_child;
 
-        let parent = get_parent(tree, index);
+        let parent = node.parent;
 
         // update index
         replace_left_child(tree, index, y);
@@ -1868,14 +1833,15 @@ module container::avl_tree {
     ///          index             y
     ///      left        x
     fun rotate_left<V>(tree: &mut AvlTree<V>, index: u64) {
-        let right = get_right_child(tree, index);
+        let node = vector::borrow(&tree.entries, index);
+        let right = node.right_child;
         assert!(
             right != NULL_INDEX,
             INVALID_ARGUMENT,
         );
-        let x = get_left_child(tree, right);
+        let x = vector::borrow(&tree.entries, right).left_child;
 
-        let parent = get_parent(tree, index);
+        let parent = node.parent;
 
         // update index
         replace_right_child(tree, index, x);
@@ -1900,7 +1866,8 @@ module container::avl_tree {
         if (index == NULL_INDEX) {
             return (false, index)
         };
-        let metadata = get_metadata(tree, index);
+        let node = vector::borrow(&tree.entries, index);
+        let metadata = node.metadata;
 
         // if the subtree is balanced, the height of the subtree is increased and the subtree becomes unbalance.
         if (metadata == AVL_ZERO) {
@@ -1910,7 +1877,7 @@ module container::avl_tree {
                 AVL_LEFT_HIGH
             };
 
-            set_metadata(tree, index, new_metadata);
+            vector::borrow_mut(&mut tree.entries, index).metadata = new_metadata;
 
             return (true, index)
         };
@@ -1918,14 +1885,14 @@ module container::avl_tree {
         // if the left tree of this subtree is higher and the right sub tree is increased,
         // the subtree here is now balanced and the height stays the same.
         if (metadata == AVL_LEFT_HIGH && is_right) {
-            set_metadata(tree, index, AVL_ZERO);
+            vector::borrow_mut(&mut tree.entries, index).metadata = AVL_ZERO;
             return (false, index)
         };
 
         // similarly if the right sub tree of the this sub tree is higher and the left sub tree is increased,
         // the subtree here is now balanced and the height stays the same.
         if (metadata == AVL_RIGHT_HIGH && !is_right) {
-            set_metadata(tree, index, AVL_ZERO);
+            vector::borrow_mut(&mut tree.entries, index).metadata = AVL_ZERO;
             return (false, index)
         };
 
@@ -1936,7 +1903,7 @@ module container::avl_tree {
             AVL_RIGHT_HIGH_2
         };
 
-        set_metadata(tree, index, new_metadata);
+        vector::borrow_mut(&mut tree.entries, index).metadata = new_metadata;
 
         let (decreased, new_index) = avl_rebalance(tree, index, false);
 
@@ -1956,7 +1923,7 @@ module container::avl_tree {
             return (false, index)
         };
 
-        let metadata = get_metadata(tree, index);
+        let metadata = vector::borrow(&tree.entries, index).metadata;
 
         // sub tree is balanced, it becomes unbalanced but upper tree height doesn't decrease
         if (metadata == AVL_ZERO) {
@@ -1966,21 +1933,21 @@ module container::avl_tree {
                 AVL_RIGHT_HIGH
             };
 
-            set_metadata(tree, index, new_metadata);
+            vector::borrow_mut(&mut tree.entries, index).metadata = new_metadata;
             return (false, index)
         };
 
         // sub tree's left sub tree is high, decreasing its height set the sub tree to balanced.
         // but parent tree height decreases
         if (metadata == AVL_LEFT_HIGH && !is_right) {
-            set_metadata(tree, index, AVL_ZERO);
+            vector::borrow_mut(&mut tree.entries, index).metadata = AVL_ZERO;
             return (true, index)
         };
 
         // sub tree's right sub tree is high, decreasing its height set the sub tree to balanced.
         // but parent tree height decreases
         if (metadata == AVL_RIGHT_HIGH && is_right) {
-            set_metadata(tree, index, AVL_ZERO);
+            vector::borrow_mut(&mut tree.entries, index).metadata = AVL_ZERO;
             return (true, index)
         };
 
@@ -1990,7 +1957,7 @@ module container::avl_tree {
             AVL_LEFT_HIGH_2
         };
 
-        set_metadata(tree, index, new_metadata);
+        vector::borrow_mut(&mut tree.entries, index).metadata = new_metadata;
 
         avl_rebalance(tree, index, true)
     }
@@ -2004,8 +1971,9 @@ module container::avl_tree {
 
         assert!(metadata == AVL_LEFT_HIGH_2 || metadata == AVL_RIGHT_HIGH_2, INVALID_ARGUMENT);
 
-        let left_child = get_left_child(tree, index);
-        let right_child = get_right_child(tree, index);
+        let node = vector::borrow(&tree.entries, index);
+        let left_child = node.left_child;
+        let right_child = node.right_child;
 
         if (metadata == AVL_LEFT_HIGH_2) {
             // left subtree is higher
@@ -2057,7 +2025,7 @@ module container::avl_tree {
                 //       left (-1/0/0)    index (0/0/1)
                 //       /    \           /     \
                 //      a   (/b/b)   (c/c/)      right
-                let w = get_right_child(tree, left_child);
+                let w = vector::borrow(&tree.entries, left_child).right_child;
                 let w_meta = get_metadata(tree, w);
                 rotate_left(tree, left_child);
                 rotate_right(tree, index);
@@ -2115,7 +2083,7 @@ module container::avl_tree {
                 //      index (0/0/-1)    right (1/0/0)
                 //       /    \           /     \
                 //      left  (b/b/)  (/c/c)     a
-                let w = get_left_child(tree, right_child);
+                let w = vector::borrow(&tree.entries, right_child).left_child;
                 let w_meta = get_metadata(tree, w);
                 rotate_right(tree, right_child);
                 rotate_left(tree, index);
