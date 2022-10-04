@@ -19,6 +19,7 @@ type SpecTreeData struct {
 	ModuleName   string
 	TreeType     string
 	NeedMetadata bool
+	DoAssert     bool
 }
 
 func getSpecTreeCmd() *cobra.Command {
@@ -33,6 +34,7 @@ func getSpecTreeCmd() *cobra.Command {
 	doVanilla := false
 	noRb := false
 	noAvl := false
+	noAssert := false
 
 	cmd.Flags().StringVarP(&output, "out", "o", output, "output file. this should be the in the sources folder of your move package module")
 	cmd.MarkFlagFilename("out")
@@ -40,7 +42,7 @@ func getSpecTreeCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&doVanilla, "include-vanilla-tree", doVanilla, "include vanila tree")
 	cmd.Flags().BoolVar(&noRb, "no-red-black-tree", noRb, "turn off red/black tree")
 	cmd.Flags().BoolVar(&noAvl, "no-avl", noAvl, "turn off avl tree")
-
+	cmd.Flags().BoolVar(&noAssert, "no-assert", noAssert, "turn off assert")
 	cmd.Run = func(_ *cobra.Command, _ []string) {
 		if noRb && noAvl && !doVanilla {
 			panic("all output tree types are turned off.")
@@ -60,6 +62,7 @@ func getSpecTreeCmd() *cobra.Command {
 				ModuleName:   "red_black_tree",
 				TreeType:     "RedBlackTree",
 				NeedMetadata: true,
+				DoAssert:     !noAssert,
 			}
 
 			err = tmpl.Execute(&buf, &data)
@@ -76,6 +79,7 @@ func getSpecTreeCmd() *cobra.Command {
 				ModuleName:   "avl_tree",
 				TreeType:     "AvlTree",
 				NeedMetadata: true,
+				DoAssert:     !noAssert,
 			}
 
 			err = tmpl.Execute(&buf, &data)
@@ -90,6 +94,7 @@ func getSpecTreeCmd() *cobra.Command {
 				Address:    address,
 				ModuleName: "vanilla_tree",
 				TreeType:   "VanillaTree",
+				DoAssert:   !noAssert,
 			}
 
 			err = tmpl.Execute(&buf, &data)

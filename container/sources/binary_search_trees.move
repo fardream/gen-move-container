@@ -1906,7 +1906,6 @@ module container::avl_tree {
         vector::borrow_mut(&mut tree.entries, index).metadata = new_metadata;
 
         let (decreased, new_index) = avl_rebalance(tree, index, false);
-
         assert!(decreased, INVALID_ARGUMENT);
 
         (false, new_index)

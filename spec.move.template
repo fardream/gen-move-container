@@ -546,17 +546,17 @@ module {{.Address}}::{{.ModuleName}} {
     /// check if index is the right child of parent.
     /// parent cannot be NULL_INDEX.
     fun is_right_child<V>(tree: &{{.TreeType}}<V>, index: u64, parent_index: u64): bool {
-        assert!(parent_index != NULL_INDEX, INVALID_ARGUMENT);
+{{if .DoAssert}}        assert!(parent_index != NULL_INDEX, INVALID_ARGUMENT);
         assert!(parent_index < size(tree), INVALID_ARGUMENT);
-        vector::borrow(&tree.entries, parent_index).right_child == index
+{{end}}        vector::borrow(&tree.entries, parent_index).right_child == index
     }
 
     /// check if index is the left child of parent.
     /// parent cannot be NULL_INDEX.
     fun is_left_child<V>(tree: &{{.TreeType}}<V>, index: u64, parent_index: u64): bool {
-        assert!(parent_index != NULL_INDEX, INVALID_ARGUMENT);
+{{if .DoAssert}}        assert!(parent_index != NULL_INDEX, INVALID_ARGUMENT);
         assert!(parent_index < size(tree), INVALID_ARGUMENT);
-        vector::borrow(&tree.entries, parent_index).left_child == index
+{{end}}        vector::borrow(&tree.entries, parent_index).left_child == index
     }
 
     /// Replace the child of parent if parent_index is not NULL_INDEX.
@@ -613,11 +613,11 @@ module {{.Address}}::{{.ModuleName}} {
     fun rotate_right<V>(tree: &mut {{.TreeType}}<V>, index: u64) {
         let node = vector::borrow(&tree.entries, index);
         let left = node.left_child;
-        assert!(
+{{if .DoAssert}}        assert!(
             left != NULL_INDEX,
             INVALID_ARGUMENT
         );
-        let y = vector::borrow(&tree.entries, left).right_child;
+{{end}}        let y = vector::borrow(&tree.entries, left).right_child;
 
         let parent = node.parent;
 
@@ -646,11 +646,11 @@ module {{.Address}}::{{.ModuleName}} {
     fun rotate_left<V>(tree: &mut {{.TreeType}}<V>, index: u64) {
         let node = vector::borrow(&tree.entries, index);
         let right = node.right_child;
-        assert!(
+{{if .DoAssert}}        assert!(
             right != NULL_INDEX,
             INVALID_ARGUMENT,
         );
-        let x = vector::borrow(&tree.entries, right).left_child;
+ {{end}}       let x = vector::borrow(&tree.entries, right).left_child;
 
         let parent = node.parent;
 
@@ -716,10 +716,11 @@ module {{.Address}}::{{.ModuleName}} {
 
         vector::borrow_mut(&mut tree.entries, index).metadata = new_metadata;
 
-        let (decreased, new_index) = avl_rebalance(tree, index, false);
-
+{{if .DoAssert}}        let (decreased, new_index) = avl_rebalance(tree, index, false);
         assert!(decreased, INVALID_ARGUMENT);
-
+{{else}}
+        let (_, new_index) = avl_rebalance(tree, index, false);
+{{end}}
         (false, new_index)
     }
 
@@ -778,10 +779,11 @@ module {{.Address}}::{{.ModuleName}} {
     // - if the height of the subtree is decreased.
     // - the index of the new subtree.
     fun avl_rebalance<V>(tree: &mut {{.TreeType}}<V>, index: u64, is_remove: bool): (bool, u64) {
-        let metadata = get_metadata(tree, index);
+{{if not .DoAssert}}        let _ = is_remove;
+{{end}}        let metadata = get_metadata(tree, index);
 
-        assert!(metadata == AVL_LEFT_HIGH_2 || metadata == AVL_RIGHT_HIGH_2, INVALID_ARGUMENT);
-
+{{if .DoAssert}}        assert!(metadata == AVL_LEFT_HIGH_2 || metadata == AVL_RIGHT_HIGH_2, INVALID_ARGUMENT);
+{{end}}
         let node = vector::borrow(&tree.entries, index);
         let left_child = node.left_child;
         let right_child = node.right_child;
@@ -790,9 +792,9 @@ module {{.Address}}::{{.ModuleName}} {
             // left subtree is higher
             let left_metadata = get_metadata(tree, left_child);
 
-            assert!(left_metadata != AVL_RIGHT_HIGH_2 && left_metadata != AVL_LEFT_HIGH_2, INVALID_ARGUMENT);
+{{if .DoAssert}}            assert!(left_metadata != AVL_RIGHT_HIGH_2 && left_metadata != AVL_LEFT_HIGH_2, INVALID_ARGUMENT);
             assert!(is_remove || left_metadata != AVL_ZERO, INVALID_ARGUMENT);
-
+{{end}}
             if (left_metadata != AVL_RIGHT_HIGH) {
                 // case 1:
                 //              index --
@@ -849,9 +851,9 @@ module {{.Address}}::{{.ModuleName}} {
         } else {
             let right_metadata = get_metadata(tree, right_child);
 
-            assert!(right_metadata != AVL_RIGHT_HIGH_2 && right_metadata != AVL_LEFT_HIGH_2, INVALID_ARGUMENT);
+{{if .DoAssert}}            assert!(right_metadata != AVL_RIGHT_HIGH_2 && right_metadata != AVL_LEFT_HIGH_2, INVALID_ARGUMENT);
             assert!(is_remove || right_metadata != AVL_ZERO, INVALID_ARGUMENT);
-
+{{end}}
             if (right_metadata != AVL_LEFT_HIGH) {
                 // case 1:
                 //              index ++
@@ -914,11 +916,11 @@ module {{.Address}}::{{.ModuleName}} {
     // - the parent tree.
     fun rb_update_insert<V>(tree: &mut {{.TreeType}}<V>, index: u64, is_right: bool): u64 {
         // make sure the index right now is red
-        assert!(
+{{if .DoAssert}}        assert!(
             get_metadata(tree, index) == RB_RED,
             INVALID_ARGUMENT,
         );
-
+{{end}}
         let node = vector::borrow(&tree.entries, index);
         // get the red child.
         let red_child = if (is_right) {
@@ -927,15 +929,15 @@ module {{.Address}}::{{.ModuleName}} {
             node.left_child
         };
 
-        assert!(
+{{if .DoAssert}}        assert!(
             get_metadata(tree, red_child) == RB_RED,
             INVALID_ARGUMENT,
         );
-
+{{end}}
         // get the parent
         // since index is red, the parent must be black
         let parent = node.parent;
-        assert!(
+{{if .DoAssert}}        assert!(
             parent != NULL_INDEX,
             INVALID_ARGUMENT,
         );
@@ -944,7 +946,7 @@ module {{.Address}}::{{.ModuleName}} {
             get_metadata(tree, parent) == RB_BLACK,
             INVALID_ARGUMENT,
         );
-
+{{end}}
         let is_index_right = is_right_child(tree, index, parent);
 
         if (!is_index_right) {
@@ -1097,11 +1099,11 @@ module {{.Address}}::{{.ModuleName}} {
         // therefore sibling must exist.
         // w is sibling
 
-        assert!(
+{{if .DoAssert}}        assert!(
             w != NULL_INDEX,
             INVALID_ARGUMENT,
         );
-        if (!is_right) {
+{{end}}        if (!is_right) {
             // if sibling (w) is red
             // rotate left at index.
             //                index (b)
@@ -1221,12 +1223,12 @@ module {{.Address}}::{{.ModuleName}} {
                 index_color = RB_RED;
 
                 w = vector::borrow(&tree.entries, index).left_child;
-
+{{if .DoAssert}}
                 assert!(
                     get_metadata(tree, w) == RB_BLACK,
                     INVALID_ARGUMENT,
                 );
-             };
+{{end}}             };
 
             // Now both siblings are black
             let w_node = vector::borrow(&tree.entries, w);
