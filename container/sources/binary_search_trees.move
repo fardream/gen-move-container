@@ -286,13 +286,13 @@ module container::red_black_tree {
 
         // updat red black tree metadata
         while (parent != NULL_INDEX) {
-            let parent_metadata = get_metadata(tree, parent);
+            let parent_metadata = vector::borrow(&tree.entries, parent).metadata;
             if (parent_metadata == RB_BLACK) {
                 break
             };
 
             parent = rb_update_insert(tree, parent, is_right_child);
-            parent_metadata = get_metadata(tree, parent);
+            parent_metadata = vector::borrow(&tree.entries, parent).metadata;
             if (parent_metadata == RB_BLACK) {
                 break
             };
@@ -306,7 +306,7 @@ module container::red_black_tree {
 
         if (tree.root != NULL_INDEX) {
             let root = tree.root;
-            set_metadata(tree, root, RB_BLACK);
+            vector::borrow_mut(&mut tree.entries, root).metadata = RB_BLACK;
         };
     }
 
@@ -388,10 +388,10 @@ module container::red_black_tree {
                     replace_child(tree, parent, index, right_child);
                 };
 
-                let old_metadata = get_metadata(tree, index);
-                let replaced_metadata = get_metadata(tree, right_child);
-                set_metadata(tree, right_child, old_metadata);
-                set_metadata(tree, index, replaced_metadata);
+                let old_metadata = vector::borrow(&tree.entries, index).metadata;
+                let replaced_metadata = vector::borrow(&tree.entries, right_child).metadata;
+                vector::borrow_mut(&mut tree.entries, right_child).metadata = old_metadata;
+                vector::borrow_mut(&mut tree.entries, index).metadata = replaced_metadata;
 
                 (right_child, true)
             } else {
@@ -429,16 +429,16 @@ module container::red_black_tree {
                     replace_child(tree, parent, index, next_successor);
                 };
 
-                let old_metadata = get_metadata(tree, index);
-                let replaced_metadata = get_metadata(tree, next_successor);
-                set_metadata(tree, next_successor, old_metadata);
-                set_metadata(tree, index, replaced_metadata);
+                let old_metadata = vector::borrow(&tree.entries, index).metadata;
+                let replaced_metadata = vector::borrow(&tree.entries, next_successor).metadata;
+                vector::borrow_mut(&mut tree.entries, next_successor).metadata = old_metadata;
+                vector::borrow_mut(&mut tree.entries, index).metadata = replaced_metadata;
 
                 (successor_parent, false)
             }
         };
 
-        let removal_metadata = get_metadata(tree, index);
+        let removal_metadata = vector::borrow(&tree.entries, index).metadata;
         while (rebalance_start != NULL_INDEX) {
             let (do_continue, new_start) = rb_update_remove(tree, rebalance_start, is_new_right, removal_metadata);
             if (!do_continue) {
@@ -453,7 +453,7 @@ module container::red_black_tree {
 
         if (tree.root != NULL_INDEX) {
             let root = tree.root;
-            set_metadata(tree, root, RB_BLACK);
+            vector::borrow_mut(&mut tree.entries, root).metadata = RB_BLACK;
         };
 
         // swap index for pop out.
@@ -493,20 +493,6 @@ module container::red_black_tree {
         let RedBlackTree { entries, root: _, min_index: _, max_index: _ } = tree;
         assert!(vector::is_empty(&entries), INVALID_ARGUMENT);
         vector::destroy_empty(entries);
-    }
-
-    /// get the metadata
-    fun get_metadata<V>(tree: &RedBlackTree<V>, index: u64): u8 {
-        if (index != NULL_INDEX) {
-            vector::borrow(&tree.entries, index).metadata
-        } else {
-            0
-        }
-    }
-
-    /// set the metadata
-    fun set_metadata<V>(tree: &mut RedBlackTree<V>, index: u64, metadata: u8) {
-        vector::borrow_mut(&mut tree.entries, index).metadata = metadata;
     }
 
     /// check if index is the right child of parent.
@@ -639,13 +625,13 @@ module container::red_black_tree {
     // returns
     // - the parent tree.
     fun rb_update_insert<V>(tree: &mut RedBlackTree<V>, index: u64, is_right: bool): u64 {
+        let node = vector::borrow(&tree.entries, index);
         // make sure the index right now is red
         assert!(
-            get_metadata(tree, index) == RB_RED,
+            node.metadata == RB_RED,
             INVALID_ARGUMENT,
         );
 
-        let node = vector::borrow(&tree.entries, index);
         // get the red child.
         let red_child = if (is_right) {
             node.right_child
@@ -654,7 +640,7 @@ module container::red_black_tree {
         };
 
         assert!(
-            get_metadata(tree, red_child) == RB_RED,
+            vector::borrow(&tree.entries, red_child).metadata == RB_RED,
             INVALID_ARGUMENT,
         );
 
@@ -667,7 +653,7 @@ module container::red_black_tree {
         );
 
         assert!(
-            get_metadata(tree, parent) == RB_BLACK,
+            vector::borrow(&tree.entries, parent).metadata == RB_BLACK,
             INVALID_ARGUMENT,
         );
 
@@ -677,7 +663,7 @@ module container::red_black_tree {
             // index is the left child of parent
             //
             let uncle = vector::borrow(&tree.entries, parent).right_child;
-            if (uncle != NULL_INDEX && get_metadata(tree, uncle) == RB_RED) {
+            if (uncle != NULL_INDEX && vector::borrow(&tree.entries, uncle).metadata == RB_RED) {
                 // case 1, uncle is red
                 // recolor parent, index, and uncle.
                 //
@@ -692,9 +678,9 @@ module container::red_black_tree {
                 //  index (b)     uncle(b)
                 //   /
                 //  rec_child (r)
-                set_metadata(tree, parent, RB_RED);
-                set_metadata(tree, index, RB_BLACK);
-                set_metadata(tree, uncle, RB_BLACK);
+                vector::borrow_mut(&mut tree.entries, parent).metadata = RB_RED;
+                vector::borrow_mut(&mut tree.entries, index).metadata = RB_BLACK;
+                vector::borrow_mut(&mut tree.entries, uncle).metadata = RB_BLACK;
                 parent
             } else if (!is_right) {
                 // case 2, red_child is left child of index
@@ -709,8 +695,8 @@ module container::red_black_tree {
                 //          /           \
                 //     red_child(r)     parent(r)
                 rotate_right(tree, parent);
-                set_metadata(tree, parent, RB_RED);
-                set_metadata(tree, index, RB_BLACK);
+                vector::borrow_mut(&mut tree.entries, parent).metadata = RB_RED;
+                vector::borrow_mut(&mut tree.entries, index).metadata = RB_BLACK;
                 index
             } else {
                 // case 3, red_child is right child of the index
@@ -726,13 +712,13 @@ module container::red_black_tree {
                 //     index(r)     parent(r)
                 rotate_left(tree, index);
                 rotate_right(tree, parent);
-                set_metadata(tree, red_child, RB_BLACK);
-                set_metadata(tree, parent, RB_RED);
+                vector::borrow_mut(&mut tree.entries, red_child).metadata = RB_BLACK;
+                vector::borrow_mut(&mut tree.entries, parent).metadata = RB_RED;
                 red_child
             }
         } else {
             let uncle = vector::borrow(&tree.entries, parent).left_child;
-            if (uncle != NULL_INDEX && get_metadata(tree, uncle) == RB_RED) {
+            if (uncle != NULL_INDEX && vector::borrow(&tree.entries, uncle).metadata == RB_RED) {
                 // case 1, uncle is red
                 // recolor parent, index, and uncle.
                 //
@@ -747,9 +733,9 @@ module container::red_black_tree {
                 //  uncle(b)     index (b)
                 //                 /
                 //            rec_child (r)
-                set_metadata(tree, parent, RB_RED);
-                set_metadata(tree, index, RB_BLACK);
-                set_metadata(tree, uncle, RB_BLACK);
+                vector::borrow_mut(&mut tree.entries, parent).metadata = RB_RED;
+                vector::borrow_mut(&mut tree.entries, index).metadata = RB_BLACK;
+                vector::borrow_mut(&mut tree.entries, uncle).metadata = RB_BLACK;
                 parent
             } else if (is_right) {
                 // case 2, red_child is right child of index
@@ -764,8 +750,8 @@ module container::red_black_tree {
                 //          /           \
                 //      parent(r)      red_child(r)
                 rotate_left(tree, parent);
-                set_metadata(tree, parent, RB_RED);
-                set_metadata(tree, index, RB_BLACK);
+                vector::borrow_mut(&mut tree.entries, parent).metadata = RB_RED;
+                vector::borrow_mut(&mut tree.entries, index).metadata = RB_BLACK;
                 index
             } else {
                 // case 3, red_child is left child of the index
@@ -781,8 +767,8 @@ module container::red_black_tree {
                 //     parent(r)       index(r)
                 rotate_right(tree, index);
                 rotate_left(tree, parent);
-                set_metadata(tree, red_child, RB_BLACK);
-                set_metadata(tree, parent, RB_RED);
+                vector::borrow_mut(&mut tree.entries, red_child).metadata = RB_BLACK;
+                vector::borrow_mut(&mut tree.entries, parent).metadata = RB_RED;
                 red_child
             }
         }
@@ -812,8 +798,8 @@ module container::red_black_tree {
 
         let index_color = node.metadata;
         
-        if (child != NULL_INDEX && get_metadata(tree, child) == RB_RED) {
-            set_metadata(tree, child, RB_BLACK);
+        if (child != NULL_INDEX && vector::borrow(&tree.entries, child).metadata == RB_RED) {
+            vector::borrow_mut(&mut tree.entries, child).metadata = RB_BLACK;
             return (false, index)
         };
 
@@ -841,7 +827,7 @@ module container::red_black_tree {
             //          index(r)     D(b)
             //          /         \
             //   child(null or b) B(b)
-            let sibling_color = get_metadata(tree, w);
+            let sibling_color = vector::borrow(&tree.entries, w).metadata;
             if (sibling_color == RB_RED) {
                 assert!(
                     index_color == RB_BLACK,
@@ -849,13 +835,13 @@ module container::red_black_tree {
                 );
 
                 rotate_left(tree, index);
-                set_metadata(tree, w, RB_BLACK);
-                set_metadata(tree, index, RB_RED);
+                vector::borrow_mut(&mut tree.entries, w).metadata = RB_BLACK;
+                vector::borrow_mut(&mut tree.entries, index).metadata = RB_RED;
                 index_color = RB_RED;
 
                 w = vector::borrow(&tree.entries, index).right_child;
                 assert!(
-                    get_metadata(tree, w) == RB_BLACK,
+                    vector::borrow(&tree.entries, w).metadata == RB_BLACK,
                     INVALID_ARGUMENT,
                 );
             };
@@ -864,14 +850,14 @@ module container::red_black_tree {
             let w_node = vector::borrow(&tree.entries, w);
             let w_left = w_node.left_child;
             let w_right = w_node.right_child;
-            let w_left_not_red = w_left == NULL_INDEX || get_metadata(tree, w_left) == RB_BLACK;
-            let w_right_not_red = w_right == NULL_INDEX || get_metadata(tree, w_right) == RB_BLACK;
+            let w_left_not_red = w_left == NULL_INDEX || vector::borrow(&tree.entries, w_left).metadata == RB_BLACK;
+            let w_right_not_red = w_right == NULL_INDEX || vector::borrow(&tree.entries, w_right).metadata == RB_BLACK;
             if (w_left_not_red && w_right_not_red) {
                 // case 1, if both of w's child are not red, color it red
                 //            index
                 //           /     \
                 //         child   w (b)
-                set_metadata(tree, w, RB_RED);
+                vector::borrow_mut(&mut tree.entries, w).metadata = RB_RED;
                 (true, vector::borrow(&tree.entries, index).parent)
             } else if (!w_right_not_red) {
                 // case 2, w's right child is red, left rotate at index
@@ -887,9 +873,9 @@ module container::red_black_tree {
                 //      /    \
                 //    child  E
                 rotate_left(tree, index);
-                set_metadata(tree, w, index_color);
-                set_metadata(tree, index, RB_BLACK);
-                set_metadata(tree, w_right, RB_BLACK);
+                vector::borrow_mut(&mut tree.entries, w).metadata = index_color;
+                vector::borrow_mut(&mut tree.entries, index).metadata = RB_BLACK;
+                vector::borrow_mut(&mut tree.entries, w_right).metadata = RB_BLACK;
                 (false, index)
             } else {
                 // case 3, w's left child is red,
@@ -916,8 +902,8 @@ module container::red_black_tree {
                 //   child              D
                 rotate_right(tree, w);
                 rotate_left(tree, index);
-                set_metadata(tree, w_left, index_color);
-                set_metadata(tree, index, RB_BLACK);
+                vector::borrow_mut(&mut tree.entries, w_left).metadata = index_color;
+                vector::borrow_mut(&mut tree.entries, index).metadata = RB_BLACK;
                 (false, index)
             }
         } else {
@@ -934,7 +920,7 @@ module container::red_black_tree {
             //         B(b)           index(r)
             //                        /      \
             //                      D(b)    child(null or b)
-             let sibling_color = get_metadata(tree, w);
+             let sibling_color = vector::borrow(&tree.entries, w).metadata;
              if (sibling_color == RB_RED) {
                 assert!(
                     index_color == RB_BLACK,
@@ -942,14 +928,14 @@ module container::red_black_tree {
                 );
 
                 rotate_right(tree, index);
-                set_metadata(tree, w, RB_BLACK);
-                set_metadata(tree, index, RB_RED);
+                vector::borrow_mut(&mut tree.entries, w).metadata = RB_BLACK;
+                vector::borrow_mut(&mut tree.entries, index).metadata = RB_RED;
                 index_color = RB_RED;
 
                 w = vector::borrow(&tree.entries, index).left_child;
 
                 assert!(
-                    get_metadata(tree, w) == RB_BLACK,
+                    vector::borrow(&tree.entries, w).metadata == RB_BLACK,
                     INVALID_ARGUMENT,
                 );
              };
@@ -958,14 +944,14 @@ module container::red_black_tree {
             let w_node = vector::borrow(&tree.entries, w);
             let w_left = w_node.left_child;
             let w_right = w_node.right_child;
-            let w_left_not_red = w_left == NULL_INDEX || get_metadata(tree, w_left) == RB_BLACK;
-            let w_right_not_red = w_right == NULL_INDEX || get_metadata(tree, w_right) == RB_BLACK;
+            let w_left_not_red = w_left == NULL_INDEX || vector::borrow(&tree.entries, w_left).metadata == RB_BLACK;
+            let w_right_not_red = w_right == NULL_INDEX || vector::borrow(&tree.entries, w_right).metadata == RB_BLACK;
             if (w_left_not_red && w_right_not_red) {
                 // case 1, if both of w's child are not red, color it red
                 //            index
                 //           /     \
                 //        w (b)    child
-                set_metadata(tree, w, RB_RED);
+                vector::borrow_mut(&mut tree.entries, w).metadata = RB_RED;
                 (true, vector::borrow(&tree.entries, index).parent)
             } else if (!w_left_not_red) {
                 // case 2, w's left child is red, right rotate at index
@@ -981,9 +967,9 @@ module container::red_black_tree {
                 //                /   \
                 //               E   child
                 rotate_right(tree, index);
-                set_metadata(tree, w, index_color);
-                set_metadata(tree, index, RB_BLACK);
-                set_metadata(tree, w_left, RB_BLACK);
+                vector::borrow_mut(&mut tree.entries, w).metadata = index_color;
+                vector::borrow_mut(&mut tree.entries, index).metadata = RB_BLACK;
+                vector::borrow_mut(&mut tree.entries, w_left).metadata = RB_BLACK;
                 (false, index)
             } else {
                 // case 3, w's right child is red,
@@ -1010,8 +996,8 @@ module container::red_black_tree {
                 //    D               child
                 rotate_left(tree, w);
                 rotate_right(tree, index);
-                set_metadata(tree, w_right, index_color);
-                set_metadata(tree, index, RB_BLACK);
+                vector::borrow_mut(&mut tree.entries, w_right).metadata = index_color;
+                vector::borrow_mut(&mut tree.entries, index).metadata = RB_BLACK;
                 (false, index)
             }
         }
@@ -1616,10 +1602,10 @@ module container::avl_tree {
                     replace_child(tree, parent, index, right_child);
                 };
 
-                let old_metadata = get_metadata(tree, index);
-                let replaced_metadata = get_metadata(tree, right_child);
-                set_metadata(tree, right_child, old_metadata);
-                set_metadata(tree, index, replaced_metadata);
+                let old_metadata = vector::borrow(&tree.entries, index).metadata;
+                let replaced_metadata = vector::borrow(&tree.entries, right_child).metadata;
+                vector::borrow_mut(&mut tree.entries, right_child).metadata = old_metadata;
+                vector::borrow_mut(&mut tree.entries, index).metadata = replaced_metadata;
 
                 (right_child, true)
             } else {
@@ -1657,10 +1643,10 @@ module container::avl_tree {
                     replace_child(tree, parent, index, next_successor);
                 };
 
-                let old_metadata = get_metadata(tree, index);
-                let replaced_metadata = get_metadata(tree, next_successor);
-                set_metadata(tree, next_successor, old_metadata);
-                set_metadata(tree, index, replaced_metadata);
+                let old_metadata = vector::borrow(&tree.entries, index).metadata;
+                let replaced_metadata = vector::borrow(&tree.entries, next_successor).metadata;
+                vector::borrow_mut(&mut tree.entries, next_successor).metadata = old_metadata;
+                vector::borrow_mut(&mut tree.entries, index).metadata = replaced_metadata;
 
                 (successor_parent, false)
             }
@@ -1716,20 +1702,6 @@ module container::avl_tree {
         let AvlTree { entries, root: _, min_index: _, max_index: _ } = tree;
         assert!(vector::is_empty(&entries), INVALID_ARGUMENT);
         vector::destroy_empty(entries);
-    }
-
-    /// get the metadata
-    fun get_metadata<V>(tree: &AvlTree<V>, index: u64): u8 {
-        if (index != NULL_INDEX) {
-            vector::borrow(&tree.entries, index).metadata
-        } else {
-            0
-        }
-    }
-
-    /// set the metadata
-    fun set_metadata<V>(tree: &mut AvlTree<V>, index: u64, metadata: u8) {
-        vector::borrow_mut(&mut tree.entries, index).metadata = metadata;
     }
 
     /// check if index is the right child of parent.
@@ -1966,17 +1938,18 @@ module container::avl_tree {
     // - if the height of the subtree is decreased.
     // - the index of the new subtree.
     fun avl_rebalance<V>(tree: &mut AvlTree<V>, index: u64, is_remove: bool): (bool, u64) {
-        let metadata = get_metadata(tree, index);
+        let node = vector::borrow(&tree.entries, index);
+        let metadata = node.metadata;
 
         assert!(metadata == AVL_LEFT_HIGH_2 || metadata == AVL_RIGHT_HIGH_2, INVALID_ARGUMENT);
 
-        let node = vector::borrow(&tree.entries, index);
+
         let left_child = node.left_child;
         let right_child = node.right_child;
 
         if (metadata == AVL_LEFT_HIGH_2) {
             // left subtree is higher
-            let left_metadata = get_metadata(tree, left_child);
+            let left_metadata = vector::borrow(&tree.entries, left_child).metadata;
 
             assert!(left_metadata != AVL_RIGHT_HIGH_2 && left_metadata != AVL_LEFT_HIGH_2, INVALID_ARGUMENT);
             assert!(is_remove || left_metadata != AVL_ZERO, INVALID_ARGUMENT);
@@ -1998,14 +1971,14 @@ module container::avl_tree {
                 //           c    b          right
                 //               /
                 //              (/e)
-                let old_left_meta = get_metadata(tree, left_child);
+                let old_left_meta = left_metadata;
                 rotate_right(tree, index);
                 if (old_left_meta == AVL_ZERO) {
-                    set_metadata(tree, left_child, AVL_RIGHT_HIGH);
-                    set_metadata(tree, index, AVL_LEFT_HIGH);
+                    vector::borrow_mut(&mut tree.entries, left_child).metadata = AVL_RIGHT_HIGH;
+                    vector::borrow_mut(&mut tree.entries, index).metadata = AVL_LEFT_HIGH;
                 } else {
-                    set_metadata(tree, left_child, AVL_ZERO);
-                    set_metadata(tree, index, AVL_ZERO);
+                    vector::borrow_mut(&mut tree.entries, left_child).metadata = AVL_ZERO;
+                    vector::borrow_mut(&mut tree.entries, index).metadata = AVL_ZERO;
                 };
 
                 (old_left_meta != AVL_ZERO, left_child)
@@ -2025,17 +1998,17 @@ module container::avl_tree {
                 //       /    \           /     \
                 //      a   (/b/b)   (c/c/)      right
                 let w = vector::borrow(&tree.entries, left_child).right_child;
-                let w_meta = get_metadata(tree, w);
+                let w_meta = vector::borrow(&tree.entries, w).metadata;
                 rotate_left(tree, left_child);
                 rotate_right(tree, index);
-                set_metadata(tree, w, AVL_ZERO);
-                set_metadata(tree, left_child, if(w_meta == AVL_RIGHT_HIGH) { AVL_LEFT_HIGH } else {AVL_ZERO});
-                set_metadata(tree, index, if(w_meta == AVL_LEFT_HIGH) {AVL_RIGHT_HIGH} else {AVL_ZERO});
+                vector::borrow_mut(&mut tree.entries, w).metadata = AVL_ZERO;
+                vector::borrow_mut(&mut tree.entries, left_child).metadata = if(w_meta == AVL_RIGHT_HIGH) { AVL_LEFT_HIGH } else {AVL_ZERO};
+                vector::borrow_mut(&mut tree.entries, index).metadata = if(w_meta == AVL_LEFT_HIGH) {AVL_RIGHT_HIGH} else {AVL_ZERO};
 
                 (true, w)
             }
         } else {
-            let right_metadata = get_metadata(tree, right_child);
+            let right_metadata = vector::borrow(&tree.entries, right_child).metadata;
 
             assert!(right_metadata != AVL_RIGHT_HIGH_2 && right_metadata != AVL_LEFT_HIGH_2, INVALID_ARGUMENT);
             assert!(is_remove || right_metadata != AVL_ZERO, INVALID_ARGUMENT);
@@ -2057,14 +2030,14 @@ module container::avl_tree {
                 //       left        a         d
                 //                    \
                 //                    (/c)
-                let old_right_meta = get_metadata(tree, right_child);
+                let old_right_meta = right_metadata;
                 rotate_left(tree, index);
                 if (old_right_meta == AVL_ZERO) {
-                    set_metadata(tree, right_child, AVL_LEFT_HIGH);
-                    set_metadata(tree, index, AVL_RIGHT_HIGH);
+                    vector::borrow_mut(&mut tree.entries, right_child).metadata = AVL_LEFT_HIGH;
+                    vector::borrow_mut(&mut tree.entries, index).metadata = AVL_RIGHT_HIGH;
                 } else {
-                    set_metadata(tree, right_child, AVL_ZERO);
-                    set_metadata(tree, index, AVL_ZERO);
+                    vector::borrow_mut(&mut tree.entries, right_child).metadata = AVL_ZERO;
+                    vector::borrow_mut(&mut tree.entries, index).metadata = AVL_ZERO;
                 };
                 (old_right_meta != AVL_ZERO, right_child)
             } else {
@@ -2083,12 +2056,12 @@ module container::avl_tree {
                 //       /    \           /     \
                 //      left  (b/b/)  (/c/c)     a
                 let w = vector::borrow(&tree.entries, right_child).left_child;
-                let w_meta = get_metadata(tree, w);
+                let w_meta = vector::borrow(&tree.entries, w).metadata;
                 rotate_right(tree, right_child);
                 rotate_left(tree, index);
-                set_metadata(tree, w, AVL_ZERO);
-                set_metadata(tree, right_child, if (w_meta == AVL_LEFT_HIGH) {AVL_RIGHT_HIGH} else {AVL_ZERO});
-                set_metadata(tree, index, if (w_meta == AVL_RIGHT_HIGH) {AVL_LEFT_HIGH} else {AVL_ZERO});
+                vector::borrow_mut(&mut tree.entries, w).metadata = AVL_ZERO;
+                vector::borrow_mut(&mut tree.entries, right_child).metadata = if (w_meta == AVL_LEFT_HIGH) {AVL_RIGHT_HIGH} else {AVL_ZERO};
+                vector::borrow_mut(&mut tree.entries, index).metadata = if (w_meta == AVL_RIGHT_HIGH) {AVL_LEFT_HIGH} else {AVL_ZERO};
 
                 (true, w)
             }
