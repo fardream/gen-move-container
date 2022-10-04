@@ -4,6 +4,26 @@ module container::red_black_tree {
     use std::option::{Self, Option};
 
     const E_INVALID_ARGUMENT: u64 = 1;
+    const E_KEY_ALREADY_EXIST: u64 = 2;
+    const E_EMPTY_TREE: u64 = 3;
+    const E_INVALID_INDEX: u64 = 4;
+    const E_TREE_TOO_BIG: u64 = 5;
+    const E_TREE_NOT_EMPTY: u64 = 6;
+    const E_PARENT_NULL: u64 = 7;
+    const E_PARENT_INDEX_OUT_OF_RANGE: u64 = 8;
+    const E_RIGHT_ROTATE_LEFT_CHILD_NULL: u64 = 9;
+    const E_LEFT_ROTATE_RIGHT_CHILD_NULL: u64 = 10;
+
+    const E_AVL_REMOVAL_NOT_DECREASE: u64 = 11;
+    const E_AVL_NOT_IMBALANCED: u64 = 12;
+    const E_AVL_SUBTREE_IMBALANCED: u64 = 13;
+    const E_AVL_BAD_STATE: u64 = 14;
+
+    const E_RB_NOT_RED_NODE: u64 = 15;
+    const E_RB_RED_HAS_RED_PARENT: u64 = 16;
+    const E_RB_RED_HAS_NO_PARENT: u64 = 17;
+    const E_RB_SIBLING_NOT_EXIST: u64 = 18;
+    const E_RB_SIBLING_FAIL_BLACK: u64 = 19;
 
     // NULL_INDEX is 1 << 64 - 1 (all 1s for the 64 bits);
     const NULL_INDEX: u64 = 18446744073709551615;
@@ -84,7 +104,6 @@ module container::red_black_tree {
         let current = tree.root;
 
         while(current != NULL_INDEX) {
-            assert!(current < size(tree), current);
             let node = vector::borrow(&tree.entries, current);
             if (node.key == key) {
                 return option::some(current)
@@ -120,15 +139,10 @@ module container::red_black_tree {
         vector::length(&tree.entries) == 0
     }
 
-    /// returns a reference to the RedBlackTree's entries.
-    public fun borrow_entries<V>(tree: &RedBlackTree<V>): &vector<Entry<V>> {
-        &tree.entries
-    }
-
     /// get index of the min of the tree.
     public fun get_min_index<V>(tree: &RedBlackTree<V>): u64 {
         let current = tree.min_index;
-        assert!(current != NULL_INDEX, current);
+        assert!(current != NULL_INDEX, E_EMPTY_TREE);
         current
     }
 
@@ -148,7 +162,7 @@ module container::red_black_tree {
     /// get index of the max of the tree.
     public fun get_max_index<V>(tree: &RedBlackTree<V>): u64 {
         let current = tree.max_index;
-        assert!(current != NULL_INDEX, current);
+        assert!(current != NULL_INDEX, E_EMPTY_TREE);
         current
     }
 
@@ -167,7 +181,7 @@ module container::red_black_tree {
 
     /// find next value in order (the key is increasing)
     public fun next_in_order<V>(tree: &RedBlackTree<V>, index: u64): u64 {
-        assert!(index != NULL_INDEX, index);
+        assert!(index != NULL_INDEX, E_INVALID_INDEX);
         let node = vector::borrow(&tree.entries, index);
         let right_child = node.right_child;
         let parent = node.parent;
@@ -201,7 +215,7 @@ module container::red_black_tree {
 
     /// find next value in reverse order (the key is decreasing)
     public fun next_in_reverse_order<V>(tree: &RedBlackTree<V>, index: u64): u64 {
-        assert!(index != NULL_INDEX, index);
+        assert!(index != NULL_INDEX, E_INVALID_INDEX);
         let node = vector::borrow(&tree.entries, index);
         let left_child = node.left_child;
         let parent = node.parent;
@@ -240,7 +254,7 @@ module container::red_black_tree {
     /// aborts if the key is already in the tree.
     public fun insert<V>(tree: &mut RedBlackTree<V>, key: u128, value: V) {
         // the max size of the tree is NULL_INDEX.
-        assert!(size(tree) < NULL_INDEX, size(tree));
+        assert!(size(tree) < NULL_INDEX, E_TREE_TOO_BIG);
         vector::push_back(
             &mut tree.entries,
             new_entry(key, value)
@@ -254,7 +268,7 @@ module container::red_black_tree {
 
         while (insert != NULL_INDEX) {
             let insert_node = vector::borrow(&tree.entries, insert);
-            assert!(insert_node.key != key, E_INVALID_ARGUMENT);
+            assert!(insert_node.key != key, E_KEY_ALREADY_EXIST);
             parent = insert;
             is_right_child = insert_node.key < key;
             insert = if (is_right_child) {
@@ -491,23 +505,23 @@ module container::red_black_tree {
     /// destroys the tree if it's empty.
     public fun destroy_empty<V>(tree: RedBlackTree<V>) {
         let RedBlackTree { entries, root: _, min_index: _, max_index: _ } = tree;
-        assert!(vector::is_empty(&entries), E_INVALID_ARGUMENT);
+        assert!(vector::is_empty(&entries), E_TREE_NOT_EMPTY);
         vector::destroy_empty(entries);
     }
 
     /// check if index is the right child of parent.
     /// parent cannot be NULL_INDEX.
     fun is_right_child<V>(tree: &RedBlackTree<V>, index: u64, parent_index: u64): bool {
-        assert!(parent_index != NULL_INDEX, E_INVALID_ARGUMENT);
-        assert!(parent_index < size(tree), E_INVALID_ARGUMENT);
+        assert!(parent_index != NULL_INDEX, E_PARENT_NULL);
+        assert!(parent_index < size(tree), E_PARENT_INDEX_OUT_OF_RANGE);
         vector::borrow(&tree.entries, parent_index).right_child == index
     }
 
     /// check if index is the left child of parent.
     /// parent cannot be NULL_INDEX.
     fun is_left_child<V>(tree: &RedBlackTree<V>, index: u64, parent_index: u64): bool {
-        assert!(parent_index != NULL_INDEX, E_INVALID_ARGUMENT);
-        assert!(parent_index < size(tree), E_INVALID_ARGUMENT);
+        assert!(parent_index != NULL_INDEX, E_PARENT_NULL);
+        assert!(parent_index < size(tree), E_PARENT_INDEX_OUT_OF_RANGE);
         vector::borrow(&tree.entries, parent_index).left_child == index
     }
 
@@ -567,7 +581,7 @@ module container::red_black_tree {
         let left = node.left_child;
         assert!(
             left != NULL_INDEX,
-            E_INVALID_ARGUMENT
+            E_RIGHT_ROTATE_LEFT_CHILD_NULL
         );
         let y = vector::borrow(&tree.entries, left).right_child;
 
@@ -629,7 +643,7 @@ module container::red_black_tree {
         // make sure the index right now is red
         assert!(
             node.metadata == RB_RED,
-            E_INVALID_ARGUMENT,
+            E_RB_NOT_RED_NODE,
         );
 
         // get the red child.
@@ -641,7 +655,7 @@ module container::red_black_tree {
 
         assert!(
             vector::borrow(&tree.entries, red_child).metadata == RB_RED,
-            E_INVALID_ARGUMENT,
+            E_RB_NOT_RED_NODE,
         );
 
         // get the parent
@@ -649,12 +663,12 @@ module container::red_black_tree {
         let parent = node.parent;
         assert!(
             parent != NULL_INDEX,
-            E_INVALID_ARGUMENT,
+            E_RB_RED_HAS_NO_PARENT,
         );
 
         assert!(
             vector::borrow(&tree.entries, parent).metadata == RB_BLACK,
-            E_INVALID_ARGUMENT,
+            E_RB_RED_HAS_RED_PARENT,
         );
 
         let is_index_right = is_right_child(tree, index, parent);
@@ -811,7 +825,7 @@ module container::red_black_tree {
 
         assert!(
             w != NULL_INDEX,
-            E_INVALID_ARGUMENT,
+            E_RB_SIBLING_NOT_EXIST,
         );
         if (!is_right) {
             // if sibling (w) is red
@@ -831,7 +845,7 @@ module container::red_black_tree {
             if (sibling_color == RB_RED) {
                 assert!(
                     index_color == RB_BLACK,
-                    E_INVALID_ARGUMENT,
+                    E_RB_RED_HAS_RED_PARENT,
                 );
 
                 rotate_left(tree, index);
@@ -842,7 +856,7 @@ module container::red_black_tree {
                 w = vector::borrow(&tree.entries, index).right_child;
                 assert!(
                     vector::borrow(&tree.entries, w).metadata == RB_BLACK,
-                    E_INVALID_ARGUMENT,
+                    E_RB_SIBLING_FAIL_BLACK,
                 );
             };
 
@@ -924,7 +938,7 @@ module container::red_black_tree {
              if (sibling_color == RB_RED) {
                 assert!(
                     index_color == RB_BLACK,
-                    E_INVALID_ARGUMENT,
+                    E_RB_RED_HAS_RED_PARENT,
                 );
 
                 rotate_right(tree, index);
@@ -936,7 +950,7 @@ module container::red_black_tree {
 
                 assert!(
                     vector::borrow(&tree.entries, w).metadata == RB_BLACK,
-                    E_INVALID_ARGUMENT,
+                    E_RB_SIBLING_FAIL_BLACK,
                 );
              };
 
@@ -1227,6 +1241,26 @@ module container::avl_tree {
     use std::option::{Self, Option};
 
     const E_INVALID_ARGUMENT: u64 = 1;
+    const E_KEY_ALREADY_EXIST: u64 = 2;
+    const E_EMPTY_TREE: u64 = 3;
+    const E_INVALID_INDEX: u64 = 4;
+    const E_TREE_TOO_BIG: u64 = 5;
+    const E_TREE_NOT_EMPTY: u64 = 6;
+    const E_PARENT_NULL: u64 = 7;
+    const E_PARENT_INDEX_OUT_OF_RANGE: u64 = 8;
+    const E_RIGHT_ROTATE_LEFT_CHILD_NULL: u64 = 9;
+    const E_LEFT_ROTATE_RIGHT_CHILD_NULL: u64 = 10;
+
+    const E_AVL_REMOVAL_NOT_DECREASE: u64 = 11;
+    const E_AVL_NOT_IMBALANCED: u64 = 12;
+    const E_AVL_SUBTREE_IMBALANCED: u64 = 13;
+    const E_AVL_BAD_STATE: u64 = 14;
+
+    const E_RB_NOT_RED_NODE: u64 = 15;
+    const E_RB_RED_HAS_RED_PARENT: u64 = 16;
+    const E_RB_RED_HAS_NO_PARENT: u64 = 17;
+    const E_RB_SIBLING_NOT_EXIST: u64 = 18;
+    const E_RB_SIBLING_FAIL_BLACK: u64 = 19;
 
     // NULL_INDEX is 1 << 64 - 1 (all 1s for the 64 bits);
     const NULL_INDEX: u64 = 18446744073709551615;
@@ -1310,7 +1344,6 @@ module container::avl_tree {
         let current = tree.root;
 
         while(current != NULL_INDEX) {
-            assert!(current < size(tree), current);
             let node = vector::borrow(&tree.entries, current);
             if (node.key == key) {
                 return option::some(current)
@@ -1346,15 +1379,10 @@ module container::avl_tree {
         vector::length(&tree.entries) == 0
     }
 
-    /// returns a reference to the AvlTree's entries.
-    public fun borrow_entries<V>(tree: &AvlTree<V>): &vector<Entry<V>> {
-        &tree.entries
-    }
-
     /// get index of the min of the tree.
     public fun get_min_index<V>(tree: &AvlTree<V>): u64 {
         let current = tree.min_index;
-        assert!(current != NULL_INDEX, current);
+        assert!(current != NULL_INDEX, E_EMPTY_TREE);
         current
     }
 
@@ -1374,7 +1402,7 @@ module container::avl_tree {
     /// get index of the max of the tree.
     public fun get_max_index<V>(tree: &AvlTree<V>): u64 {
         let current = tree.max_index;
-        assert!(current != NULL_INDEX, current);
+        assert!(current != NULL_INDEX, E_EMPTY_TREE);
         current
     }
 
@@ -1393,7 +1421,7 @@ module container::avl_tree {
 
     /// find next value in order (the key is increasing)
     public fun next_in_order<V>(tree: &AvlTree<V>, index: u64): u64 {
-        assert!(index != NULL_INDEX, index);
+        assert!(index != NULL_INDEX, E_INVALID_INDEX);
         let node = vector::borrow(&tree.entries, index);
         let right_child = node.right_child;
         let parent = node.parent;
@@ -1427,7 +1455,7 @@ module container::avl_tree {
 
     /// find next value in reverse order (the key is decreasing)
     public fun next_in_reverse_order<V>(tree: &AvlTree<V>, index: u64): u64 {
-        assert!(index != NULL_INDEX, index);
+        assert!(index != NULL_INDEX, E_INVALID_INDEX);
         let node = vector::borrow(&tree.entries, index);
         let left_child = node.left_child;
         let parent = node.parent;
@@ -1466,7 +1494,7 @@ module container::avl_tree {
     /// aborts if the key is already in the tree.
     public fun insert<V>(tree: &mut AvlTree<V>, key: u128, value: V) {
         // the max size of the tree is NULL_INDEX.
-        assert!(size(tree) < NULL_INDEX, size(tree));
+        assert!(size(tree) < NULL_INDEX, E_TREE_TOO_BIG);
         vector::push_back(
             &mut tree.entries,
             new_entry(key, value)
@@ -1480,7 +1508,7 @@ module container::avl_tree {
 
         while (insert != NULL_INDEX) {
             let insert_node = vector::borrow(&tree.entries, insert);
-            assert!(insert_node.key != key, E_INVALID_ARGUMENT);
+            assert!(insert_node.key != key, E_KEY_ALREADY_EXIST);
             parent = insert;
             is_right_child = insert_node.key < key;
             insert = if (is_right_child) {
@@ -1700,23 +1728,23 @@ module container::avl_tree {
     /// destroys the tree if it's empty.
     public fun destroy_empty<V>(tree: AvlTree<V>) {
         let AvlTree { entries, root: _, min_index: _, max_index: _ } = tree;
-        assert!(vector::is_empty(&entries), E_INVALID_ARGUMENT);
+        assert!(vector::is_empty(&entries), E_TREE_NOT_EMPTY);
         vector::destroy_empty(entries);
     }
 
     /// check if index is the right child of parent.
     /// parent cannot be NULL_INDEX.
     fun is_right_child<V>(tree: &AvlTree<V>, index: u64, parent_index: u64): bool {
-        assert!(parent_index != NULL_INDEX, E_INVALID_ARGUMENT);
-        assert!(parent_index < size(tree), E_INVALID_ARGUMENT);
+        assert!(parent_index != NULL_INDEX, E_PARENT_NULL);
+        assert!(parent_index < size(tree), E_PARENT_INDEX_OUT_OF_RANGE);
         vector::borrow(&tree.entries, parent_index).right_child == index
     }
 
     /// check if index is the left child of parent.
     /// parent cannot be NULL_INDEX.
     fun is_left_child<V>(tree: &AvlTree<V>, index: u64, parent_index: u64): bool {
-        assert!(parent_index != NULL_INDEX, E_INVALID_ARGUMENT);
-        assert!(parent_index < size(tree), E_INVALID_ARGUMENT);
+        assert!(parent_index != NULL_INDEX, E_PARENT_NULL);
+        assert!(parent_index < size(tree), E_PARENT_INDEX_OUT_OF_RANGE);
         vector::borrow(&tree.entries, parent_index).left_child == index
     }
 
@@ -1776,7 +1804,7 @@ module container::avl_tree {
         let left = node.left_child;
         assert!(
             left != NULL_INDEX,
-            E_INVALID_ARGUMENT
+            E_RIGHT_ROTATE_LEFT_CHILD_NULL
         );
         let y = vector::borrow(&tree.entries, left).right_child;
 
@@ -1878,7 +1906,7 @@ module container::avl_tree {
         vector::borrow_mut(&mut tree.entries, index).metadata = new_metadata;
 
         let (decreased, new_index) = avl_rebalance(tree, index, false);
-        assert!(decreased, E_INVALID_ARGUMENT);
+        assert!(decreased, E_AVL_REMOVAL_NOT_DECREASE);
 
         (false, new_index)
     }
@@ -1941,7 +1969,7 @@ module container::avl_tree {
         let node = vector::borrow(&tree.entries, index);
         let metadata = node.metadata;
 
-        assert!(metadata == AVL_LEFT_HIGH_2 || metadata == AVL_RIGHT_HIGH_2, E_INVALID_ARGUMENT);
+        assert!(metadata == AVL_LEFT_HIGH_2 || metadata == AVL_RIGHT_HIGH_2, E_AVL_NOT_IMBALANCED);
 
 
         let left_child = node.left_child;
@@ -1951,8 +1979,8 @@ module container::avl_tree {
             // left subtree is higher
             let left_metadata = vector::borrow(&tree.entries, left_child).metadata;
 
-            assert!(left_metadata != AVL_RIGHT_HIGH_2 && left_metadata != AVL_LEFT_HIGH_2, E_INVALID_ARGUMENT);
-            assert!(is_remove || left_metadata != AVL_ZERO, E_INVALID_ARGUMENT);
+            assert!(left_metadata != AVL_RIGHT_HIGH_2 && left_metadata != AVL_LEFT_HIGH_2, E_AVL_SUBTREE_IMBALANCED);
+            assert!(is_remove || left_metadata != AVL_ZERO, E_AVL_BAD_STATE);
 
             if (left_metadata != AVL_RIGHT_HIGH) {
                 // case 1:
@@ -2010,8 +2038,8 @@ module container::avl_tree {
         } else {
             let right_metadata = vector::borrow(&tree.entries, right_child).metadata;
 
-            assert!(right_metadata != AVL_RIGHT_HIGH_2 && right_metadata != AVL_LEFT_HIGH_2, E_INVALID_ARGUMENT);
-            assert!(is_remove || right_metadata != AVL_ZERO, E_INVALID_ARGUMENT);
+            assert!(right_metadata != AVL_RIGHT_HIGH_2 && right_metadata != AVL_LEFT_HIGH_2, E_AVL_SUBTREE_IMBALANCED);
+            assert!(is_remove || right_metadata != AVL_ZERO, E_AVL_BAD_STATE);
 
             if (right_metadata != AVL_LEFT_HIGH) {
                 // case 1:
