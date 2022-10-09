@@ -270,7 +270,7 @@ module container::red_black_tree {
             let insert_node = vector::borrow(&tree.entries, insert);
             assert!(insert_node.key != key, E_KEY_ALREADY_EXIST);
             parent = insert;
-            is_right_child = insert_node.key < key;
+            is_right_child = ((insert_node.key < key));
             insert = if (is_right_child) {
                 insert_node.right_child
             } else {
@@ -286,10 +286,12 @@ module container::red_black_tree {
             } else {
                 replace_left_child(tree, parent, node);
             };
-            if (vector::borrow(&tree.entries, tree.max_index).key < key) {
+            let max_node = vector::borrow(&tree.entries, tree.max_index);
+            if (max_node.key < key) {
                 tree.max_index = node;
             };
-            if (vector::borrow(&tree.entries, tree.min_index).key > key) {
+            let min_node = vector::borrow(&tree.entries, tree.min_index);
+            if (min_node.key > key) {
                 tree.min_index = node;
             };
         } else {
@@ -1510,7 +1512,7 @@ module container::avl_tree {
             let insert_node = vector::borrow(&tree.entries, insert);
             assert!(insert_node.key != key, E_KEY_ALREADY_EXIST);
             parent = insert;
-            is_right_child = insert_node.key < key;
+            is_right_child = ((insert_node.key < key));
             insert = if (is_right_child) {
                 insert_node.right_child
             } else {
@@ -1526,10 +1528,12 @@ module container::avl_tree {
             } else {
                 replace_left_child(tree, parent, node);
             };
-            if (vector::borrow(&tree.entries, tree.max_index).key < key) {
+            let max_node = vector::borrow(&tree.entries, tree.max_index);
+            if (max_node.key < key) {
                 tree.max_index = node;
             };
-            if (vector::borrow(&tree.entries, tree.min_index).key > key) {
+            let min_node = vector::borrow(&tree.entries, tree.min_index);
+            if (min_node.key > key) {
                 tree.min_index = node;
             };
         } else {

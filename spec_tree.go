@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	_ "embed"
+	"fmt"
 	"os"
 	"text/template"
 
@@ -12,6 +13,12 @@ import (
 //go:embed spec.move.template
 var specTreeTemplate string
 
+type Key struct {
+	KeyName      string
+	More         bool
+	EqualsBefore []*Key
+}
+
 type SpecTreeData struct {
 	IsAvl        bool
 	IsRb         bool
@@ -20,6 +27,43 @@ type SpecTreeData struct {
 	TreeType     string
 	NeedMetadata bool
 	DoAssert     bool
+	Keys         []Key
+	DoTest       bool
+}
+
+func genKeyList(keyCount int) []Key {
+	if keyCount < 1 {
+		panic(fmt.Errorf("less than 1 key is requested: %d", keyCount))
+	}
+
+	if keyCount == 1 {
+		return []Key{{KeyName: "key", More: false}}
+	}
+
+	result := []Key{}
+
+	for i := 0; i < keyCount; i++ {
+		key := Key{
+			KeyName: fmt.Sprintf("key%d_%d", i, keyCount),
+			More:    i != keyCount-1,
+		}
+		for j := 0; j < i; j++ {
+			key.EqualsBefore = append(key.EqualsBefore, &Key{
+				KeyName: fmt.Sprintf("key%d_%d", j, keyCount),
+				More:    j != i-1,
+			})
+		}
+		result = append(result, key)
+	}
+
+	return result
+}
+
+func getModuleName(modulePostfix, defaultName string) string {
+	if modulePostfix == "" {
+		return defaultName
+	}
+	return fmt.Sprintf("%s_%s", defaultName, modulePostfix)
 }
 
 func getSpecTreeCmd() *cobra.Command {
@@ -35,6 +79,8 @@ func getSpecTreeCmd() *cobra.Command {
 	noRb := false
 	noAvl := false
 	noAssert := false
+	keyCount := 1
+	modulePostfix := ""
 
 	cmd.Flags().StringVarP(&output, "out", "o", output, "output file. this should be the in the sources folder of your move package module")
 	cmd.MarkFlagFilename("out")
@@ -43,6 +89,9 @@ func getSpecTreeCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&noRb, "no-red-black-tree", noRb, "turn off red/black tree")
 	cmd.Flags().BoolVar(&noAvl, "no-avl", noAvl, "turn off avl tree")
 	cmd.Flags().BoolVar(&noAssert, "no-assert", noAssert, "turn off assert")
+	cmd.Flags().IntVar(&keyCount, "key-count", keyCount, "number of keys for the tree")
+	cmd.Flags().StringVar(&modulePostfix, "module-postfix", modulePostfix, "postfix for module name")
+
 	cmd.Run = func(_ *cobra.Command, _ []string) {
 		if noRb && noAvl && !doVanilla {
 			panic("all output tree types are turned off.")
@@ -59,10 +108,12 @@ func getSpecTreeCmd() *cobra.Command {
 			data := SpecTreeData{
 				Address:      address,
 				IsRb:         true,
-				ModuleName:   "red_black_tree",
+				ModuleName:   getModuleName(modulePostfix, "red_black_tree"),
 				TreeType:     "RedBlackTree",
 				NeedMetadata: true,
 				DoAssert:     !noAssert,
+				Keys:         genKeyList(keyCount),
+				DoTest:       keyCount == 1,
 			}
 
 			err = tmpl.Execute(&buf, &data)
@@ -76,10 +127,12 @@ func getSpecTreeCmd() *cobra.Command {
 			data := SpecTreeData{
 				Address:      address,
 				IsAvl:        true,
-				ModuleName:   "avl_tree",
+				ModuleName:   getModuleName(modulePostfix, "avl_tree"),
 				TreeType:     "AvlTree",
 				NeedMetadata: true,
 				DoAssert:     !noAssert,
+				Keys:         genKeyList(keyCount),
+				DoTest:       keyCount == 1,
 			}
 
 			err = tmpl.Execute(&buf, &data)
@@ -92,9 +145,11 @@ func getSpecTreeCmd() *cobra.Command {
 		if doVanilla {
 			data := SpecTreeData{
 				Address:    address,
-				ModuleName: "vanilla_tree",
+				ModuleName: getModuleName(modulePostfix, "vanilla_tree"),
 				TreeType:   "VanillaTree",
 				DoAssert:   !noAssert,
+				Keys:       genKeyList(keyCount),
+				DoTest:     keyCount == 1,
 			}
 
 			err = tmpl.Execute(&buf, &data)

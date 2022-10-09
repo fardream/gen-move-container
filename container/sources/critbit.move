@@ -1,9 +1,15 @@
 // critbit tree based on http://github.com/agl/critbit
 module container::critbit {
     use std::vector;
-    use std::option::{Self, Option};
 
-    const INVALID_ARGUMENT: u64 = 1;
+    const E_INVALID_ARGUMENT: u64 = 1;
+    const E_EMPTY_TREE: u64 = 2;
+    const E_TREE_NOT_EMPTY: u64 = 3;
+    const E_KEY_ALREADY_EXIST: u64 = 4;
+    const E_INDEX_OUT_OF_RANGE: u64 = 5;
+    const E_DATA_NODE_LACK_PARENT: u64 = 6;
+    const E_CANNOT_DESTRORY_NON_EMPTY: u64 = 7;
+
 
     // NULL_INDEX is 1 << 63;
     const NULL_INDEX: u64 = 1 << 63;
@@ -15,6 +21,10 @@ module container::critbit {
         index == NULL_INDEX
     }
 
+    public fun null_index_value(): u64 {
+        NULL_INDEX
+    }
+
     fun is_data_index(index: u64): bool {
         index > NULL_INDEX
     }
@@ -22,7 +32,6 @@ module container::critbit {
     fun convert_data_index(index: u64): u64 {
         MAX_U64 - index
     }
-
 
     struct DataNode<V> has store, copy, drop {
         // mask
@@ -66,13 +75,13 @@ module container::critbit {
     ///////////////
 
     /// find returns the element index in the tree, or none if not found.
-    public fun find<V>(tree: &CritbitTree<V>, key: u128): Option<u64> {
+    public fun find<V>(tree: &CritbitTree<V>, key: u128): u64 {
         let closest_key = find_closest_key(tree, key, tree.root);
 
         if (closest_key != NULL_INDEX && vector::borrow(&tree.entries, closest_key).key == key) {
-            option::some(closest_key)
+            closest_key
         } else {
-            option::none()
+            NULL_INDEX
         }
     }
 
@@ -101,7 +110,7 @@ module container::critbit {
     /// get index of the min of the tree.
     public fun get_min_index<V>(tree: &CritbitTree<V>): u64 {
         let current = tree.min_index;
-        assert!(current != NULL_INDEX, current);
+        assert!(current != NULL_INDEX, E_EMPTY_TREE);
         current
     }
 
@@ -121,7 +130,7 @@ module container::critbit {
     /// get index of the max of the tree.
     public fun get_max_index<V>(tree: &CritbitTree<V>): u64 {
         let current = tree.max_index;
-        assert!(current != NULL_INDEX, current);
+        assert!(current != NULL_INDEX, E_EMPTY_TREE);
         current
     }
 
@@ -173,7 +182,7 @@ module container::critbit {
             if (parent == NULL_INDEX) {
                 NULL_INDEX
             } else {
-                get_min_index_from(tree, vector::borrow(&tree.tree, parent).left_child)
+                get_max_index_from(tree, vector::borrow(&tree.tree, parent).left_child)
             }
         }
     }
@@ -228,7 +237,7 @@ module container::critbit {
 
         // the closest_index will be NULL_INDEX iff tree is empty.
         if (closest_index == NULL_INDEX) {
-            assert!(data_index == 0, INVALID_ARGUMENT);
+            assert!(data_index == 0, E_TREE_NOT_EMPTY);
             tree.root = convert_data_index(data_index);
             tree.min_index = data_index;
             tree.max_index = data_index;
@@ -242,7 +251,7 @@ module container::critbit {
         // - If the critbit of the closest_key/key is higher, we insert a parent node, and append the new node as child, and attach the old key.
         let closest_key = vector::borrow(&tree.entries, closest_index).key;
 
-        assert!(closest_key != key, INVALID_ARGUMENT);
+        assert!(closest_key != key, E_KEY_ALREADY_EXIST);
 
         // get the critbit and a new mask
         let n = critbit(closest_key, key);
@@ -307,7 +316,7 @@ module container::critbit {
     /// remove deletes and returns the element from the CritbitTree.
     public fun remove<V>(tree: &mut CritbitTree<V>, index: u64): (u128, V) {
         let old_length = vector::length(&tree.entries);
-        assert!(old_length > index, INVALID_ARGUMENT);
+        assert!(old_length > index, E_INDEX_OUT_OF_RANGE);
 
         if (tree.min_index == index) {
             tree.min_index = next_in_order(tree, index);
@@ -321,7 +330,7 @@ module container::critbit {
         let original_parent = vector::borrow(&tree.entries, index).parent;
         let is_left_child = if (original_parent != NULL_INDEX) {
             is_left_child(tree, data_index_converted, original_parent)
-        } else { 
+        } else {
             false
         };
 
@@ -351,14 +360,14 @@ module container::critbit {
         let DataNode<V> {key, value, parent: _} = vector::pop_back(&mut tree.entries);
 
         if (vector::length(&tree.entries) == 0) {
-            assert!(original_parent == NULL_INDEX, INVALID_ARGUMENT);
-            assert!(vector::length(&tree.tree) == 0, INVALID_ARGUMENT);
+            assert!(original_parent == NULL_INDEX, E_TREE_NOT_EMPTY);
+            assert!(vector::length(&tree.tree) == 0, E_TREE_NOT_EMPTY);
             tree.root = NULL_INDEX;
             tree.min_index = NULL_INDEX;
             tree.max_index = NULL_INDEX;
             (key, value)
         } else {
-            assert!(original_parent != NULL_INDEX, INVALID_ARGUMENT);
+            assert!(original_parent != NULL_INDEX, E_DATA_NODE_LACK_PARENT);
             let original_parent_node = vector::borrow(&tree.tree, original_parent);
             let other_child = if (is_left_child) {
                 original_parent_node.right_child
@@ -374,7 +383,7 @@ module container::critbit {
             };
 
             let tree_size = vector::length(&tree.tree);
-            assert!(tree_size > original_parent, INVALID_ARGUMENT);
+            assert!(tree_size > original_parent, E_INDEX_OUT_OF_RANGE);
             let tree_end_index = tree_size - 1;
             if (tree_end_index != original_parent) {
                 vector::swap(&mut tree.tree, tree_end_index, original_parent);
@@ -398,7 +407,7 @@ module container::critbit {
 
     /// destroys the tree if it's empty.
     public fun destroy_empty<V>(tree: CritbitTree<V>) {
-        assert!(vector::length(&tree.entries) == 0, INVALID_ARGUMENT);
+        assert!(vector::length(&tree.entries) == 0, E_CANNOT_DESTRORY_NON_EMPTY);
 
         let CritbitTree<V> {
             entries,
@@ -574,7 +583,7 @@ module container::critbit {
                 new_tree_entry_for_test(4, NULL_INDEX, convert_data_index(3), 0),
             ],
             min_index: 3,
-            max_index: 0,            
+            max_index: 0,
         };
         //             100
         //            /    \
@@ -602,7 +611,7 @@ module container::critbit {
                 new_tree_entry_for_test(2, 2, convert_data_index(3), convert_data_index(4)),
             ],
             min_index: 3,
-            max_index: 0,            
+            max_index: 0,
         };
         //                100
         //            /          \
@@ -632,7 +641,7 @@ module container::critbit {
                 new_tree_entry_for_test(1, 3, convert_data_index(5), convert_data_index(4)),
             ],
             min_index: 3,
-            max_index: 0,            
+            max_index: 0,
         };
         //                  100
         //            /                \
@@ -692,7 +701,7 @@ module container::critbit {
                 new_tree_entry_for_test(1, 3, convert_data_index(5), convert_data_index(4)),
             ],
             min_index: 3,
-            max_index: 0,            
+            max_index: 0,
         };
 
         remove(&mut bst, 3);
@@ -719,7 +728,7 @@ module container::critbit {
                 new_tree_entry_for_test(1, 2, convert_data_index(3), convert_data_index(4)),
             ],
             min_index: 3,
-            max_index: 0,            
+            max_index: 0,
         };
         assert!(&bst == &v5_bst, 5);
 
@@ -745,7 +754,7 @@ module container::critbit {
                 new_tree_entry_for_test(4, NULL_INDEX, convert_data_index(3), 0),
             ],
             min_index: 3,
-            max_index: 0,            
+            max_index: 0,
         };
         assert!(&bst == &v4_bst, 4);
 
@@ -767,7 +776,7 @@ module container::critbit {
                 new_tree_entry_for_test(4, NULL_INDEX, convert_data_index(1), 0),
             ],
             min_index: 1,
-            max_index: 0,            
+            max_index: 0,
         };
         assert!(&bst == &v3_bst, 3);
 
@@ -785,7 +794,7 @@ module container::critbit {
                 new_tree_entry_for_test(4, NULL_INDEX, convert_data_index(1), convert_data_index(0)),
             ],
             min_index: 1,
-            max_index: 0,            
+            max_index: 0,
         };
         assert!(&bst == &v2_bst, 2);
 
@@ -799,7 +808,7 @@ module container::critbit {
             tree: vector<TreeNode> [
             ],
             min_index: 0,
-            max_index: 0,            
+            max_index: 0,
         };
         assert!(&bst == &v1_bst, 2);
 
@@ -811,7 +820,7 @@ module container::critbit {
             entries: vector<DataNode<u128>> [],
             tree: vector<TreeNode> [],
             min_index: NULL_INDEX,
-            max_index: NULL_INDEX,            
+            max_index: NULL_INDEX,
         };
         assert!(&bst == &v0_bst, 2);
     }

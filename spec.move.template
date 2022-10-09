@@ -48,9 +48,9 @@ module {{.Address}}::{{.ModuleName}} {
 {{end}}
     /// Entry is the internal {{.TreeType}} element.
     struct Entry<V> has store, copy, drop {
-        // key
-        key: u128,
-        // value
+{{range .Keys}}        // key
+        {{.KeyName}}: u128,
+{{end}}        // value
         value: V,
         // parent
         parent: u64,
@@ -62,10 +62,10 @@ module {{.Address}}::{{.ModuleName}} {
         metadata: u8,
 {{end}}    }
 
-    fun new_entry<V>(key: u128, value: V): Entry<V> {
+    fun new_entry<V>({{range .Keys}}{{.KeyName}}: u128, {{end}}value: V): Entry<V> {
         Entry<V> {
-            key,
-            value,
+{{range .Keys}}            {{.KeyName}},
+{{end}}            value,
             parent: NULL_INDEX,
             left_child: NULL_INDEX,
             right_child: NULL_INDEX,
@@ -74,10 +74,10 @@ module {{.Address}}::{{.ModuleName}} {
     }
 
     #[test_only]
-    fun new_entry_for_test<V>(key: u128, value: V, parent: u64, left_child: u64, right_child: u64{{if .NeedMetadata}}, metadata: u8{{end}}): Entry<V> {
+    fun new_entry_for_test<V>({{range .Keys}}{{.KeyName}}: u128, {{end}}value: V, parent: u64, left_child: u64, right_child: u64{{if .NeedMetadata}}, metadata: u8{{end}}): Entry<V> {
         Entry {
-            key,
-            value,
+{{range .Keys}}            {{.KeyName}},
+{{end}}            value,
             parent,
             left_child,
             right_child,
@@ -108,14 +108,16 @@ module {{.Address}}::{{.ModuleName}} {
     ///////////////
 
     /// find returns the element index in the {{.TreeType}}, or none if not found.
-    public fun find<V>(tree: &{{.TreeType}}<V>, key: u128): Option<u64> {
+    public fun find<V>(tree: &{{.TreeType}}<V>, {{range .Keys}}{{.KeyName}}: u128{{if .More}}, {{end}}{{end}}): Option<u64> {
         let current = tree.root;
 
         while(current != NULL_INDEX) {
             let node = vector::borrow(&tree.entries, current);
-            if (node.key == key) {
+            if ({{range .Keys}}node.{{.KeyName}} == {{.KeyName}}{{if .More}} && {{end}}{{end}}) {
                 return option::some(current)
-            } else if(node.key < key) {
+            };
+            let is_smaller = {{range .Keys}}({{range .EqualsBefore}}(node.{{.KeyName}} == {{.KeyName}}) && {{end}}(node.{{.KeyName}} < {{.KeyName}})){{if .More}} || {{end}}{{end}};
+            if(is_smaller) {
                 current = node.right_child;
             } else {
                 current = node.left_child;
@@ -126,15 +128,15 @@ module {{.Address}}::{{.ModuleName}} {
     }
 
     /// borrow returns a reference to the element with its key at the given index
-    public fun borrow_at_index<V>(tree: &{{.TreeType}}<V>, index: u64): (u128, &V) {
+    public fun borrow_at_index<V>(tree: &{{.TreeType}}<V>, index: u64): ({{range .Keys}}u128, {{end}}&V) {
         let entry = vector::borrow(&tree.entries, index);
-        (entry.key, &entry.value)
+        ({{range .Keys}}entry.{{.KeyName}}, {{end}}&entry.value)
     }
 
     /// borrow_mut returns a mutable reference to the element with its key at the given index
-    public fun borrow_at_index_mut<V>(tree: &mut {{.TreeType}}<V>, index: u64): (u128, &mut V) {
+    public fun borrow_at_index_mut<V>(tree: &mut {{.TreeType}}<V>, index: u64): ({{range .Keys}}u128, {{end}}&mut V) {
         let entry = vector::borrow_mut(&mut tree.entries, index);
-        (entry.key, &mut entry.value)
+        ({{range .Keys}}entry.{{.KeyName}}, {{end}}&mut entry.value)
     }
 
     /// size returns the number of elements in the {{.TreeType}}.
@@ -145,11 +147,6 @@ module {{.Address}}::{{.ModuleName}} {
     /// empty returns true if the {{.TreeType}} is empty.
     public fun empty<V>(tree: &{{.TreeType}}<V>): bool {
         vector::length(&tree.entries) == 0
-    }
-
-    /// returns a reference to the {{.TreeType}}'s entries.
-    public fun borrow_entries<V>(tree: &{{.TreeType}}<V>): &vector<Entry<V>> {
-        &tree.entries
     }
 
     /// get index of the min of the tree.
@@ -265,12 +262,12 @@ module {{.Address}}::{{.ModuleName}} {
 
     /// insert puts the value keyed at the input keys into the {{.TreeType}}.
     /// aborts if the key is already in the tree.
-    public fun insert<V>(tree: &mut {{.TreeType}}<V>, key: u128, value: V) {
+    public fun insert<V>(tree: &mut {{.TreeType}}<V>, {{range .Keys}}{{.KeyName}}: u128, {{end}}value: V) {
         // the max size of the tree is NULL_INDEX.
         assert!(size(tree) < NULL_INDEX, E_TREE_TOO_BIG);
         vector::push_back(
             &mut tree.entries,
-            new_entry(key, value)
+            new_entry({{range .Keys}}{{.KeyName}}, {{end}}value)
         );
 
         let node = size(tree) - 1;
@@ -281,9 +278,9 @@ module {{.Address}}::{{.ModuleName}} {
 
         while (insert != NULL_INDEX) {
             let insert_node = vector::borrow(&tree.entries, insert);
-            assert!(insert_node.key != key, E_KEY_ALREADY_EXIST);
+            assert!({{range .Keys}}(insert_node.{{.KeyName}} != {{.KeyName}}){{if .More}}||{{end}}{{end}}, E_KEY_ALREADY_EXIST);
             parent = insert;
-            is_right_child = insert_node.key < key;
+            is_right_child = {{range .Keys}}({{range .EqualsBefore}}(insert_node.{{.KeyName}} == {{.KeyName}}) && {{end}}(insert_node.{{.KeyName}} < {{.KeyName}})){{if .More}} || {{end}}{{end}};
             insert = if (is_right_child) {
                 insert_node.right_child
             } else {
@@ -299,10 +296,14 @@ module {{.Address}}::{{.ModuleName}} {
             } else {
                 replace_left_child(tree, parent, node);
             };
-            if (vector::borrow(&tree.entries, tree.max_index).key < key) {
+            let max_node = vector::borrow(&tree.entries, tree.max_index);
+            let is_max_smaller = {{range .Keys}}({{range .EqualsBefore}}(max_node.{{.KeyName}} == {{.KeyName}}) && {{end}}(max_node.{{.KeyName}} < {{.KeyName}})){{if .More}} || {{end}}{{end}};
+            if (is_max_smaller) {
                 tree.max_index = node;
             };
-            if (vector::borrow(&tree.entries, tree.min_index).key > key) {
+            let min_node = vector::borrow(&tree.entries, tree.min_index);
+            let is_min_bigger = {{range .Keys}}({{range .EqualsBefore}}(min_node.{{.KeyName}} == {{.KeyName}}) && {{end}}(min_node.{{.KeyName}} > {{.KeyName}})){{if .More}} || {{end}}{{end}};
+            if (is_min_bigger) {
                 tree.min_index = node;
             };
         } else {
@@ -351,7 +352,7 @@ module {{.Address}}::{{.ModuleName}} {
 {{end}}    }
 
     /// remove deletes and returns the element from the {{.TreeType}}.
-    public fun remove<V>(tree: &mut {{.TreeType}}<V>, index: u64): (u128, V) {
+    public fun remove<V>(tree: &mut {{.TreeType}}<V>, index: u64): ({{range .Keys}}u128, {{end}}V) {
         if (tree.max_index == index) {
             tree.max_index = next_in_reverse_order(tree, index);
         };
@@ -532,13 +533,13 @@ module {{.Address}}::{{.ModuleName}} {
         };
 
         ////////// now clear up.
-        let Entry { key, value, parent: _, left_child: _, right_child: _{{if .NeedMetadata}}, metadata: _{{end}} } = vector::pop_back(&mut tree.entries);
+        let Entry { {{range .Keys}}{{.KeyName}}, {{end}} value, parent: _, left_child: _, right_child: _{{if .NeedMetadata}}, metadata: _{{end}} } = vector::pop_back(&mut tree.entries);
 
         if (size(tree) == 0) {
             tree.root = NULL_INDEX;
         };
 
-        (key, value)
+        ({{range .Keys}}{{.KeyName}}, {{end}} value)
     }
 
     /// destroys the tree if it's empty.
@@ -1298,7 +1299,7 @@ module {{.Address}}::{{.ModuleName}} {
             }
         }
     }
-{{end}}{{if .IsAvl}}
+{{end}}{{if .DoTest}}{{if .IsAvl}}
     #[test]
     fun test_avl() {
         let tree = new<u128>();
@@ -1719,4 +1720,4 @@ module {{.Address}}::{{.ModuleName}} {
 
         destroy_empty(tree);
     }
-{{end}}}
+{{end}}{{end}}}
