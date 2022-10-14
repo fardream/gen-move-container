@@ -20,147 +20,158 @@ type Key struct {
 }
 
 type SpecTreeData struct {
-	IsAvl        bool
-	IsRb         bool
-	Address      string
-	ModuleName   string
-	TreeType     string
-	NeedMetadata bool
-	DoAssert     bool
-	Keys         []Key
-	DoTest       bool
+	*Shared
+	IsAvl         bool
+	IsRb          bool
+	NoAssert      bool
+	KeyCount      int
+	ModulePostfix string
+
+	Keys []Key
 }
 
-func genKeyList(keyCount int) []Key {
+func (data *SpecTreeData) SetSpecTreeData(cmd *cobra.Command) {
+	data.SetCmd(cmd)
+
+	cmd.Flags().StringVar(&data.ModulePostfix, "module-postfilx", data.ModulePostfix, "post fix for module name")
+	cmd.Flags().IntVar(&data.KeyCount, "key-count", data.KeyCount, "number of keys for the tree")
+	cmd.Flags().BoolVar(&data.NoAssert, "no-ssert", data.NoAssert, "turn off assert")
+
+	cmd.Run = data.Run
+}
+
+func (data *SpecTreeData) NeedMetadata() bool {
+	return data.IsAvl || data.IsRb
+}
+
+func (data *SpecTreeData) DoAssert() bool {
+	return !data.NoAssert
+}
+
+func (data *SpecTreeData) TreeType() string {
+	switch {
+	case data.IsRb:
+		return "RedBlackTree"
+	case data.IsAvl:
+		return "AvlTree"
+	default:
+		return "BinarySearchTree"
+	}
+}
+
+func (data *SpecTreeData) Run(cmd *cobra.Command, _ []string) {
+	keyCount := data.KeyCount
+
 	if keyCount < 1 {
 		panic(fmt.Errorf("less than 1 key is requested: %d", keyCount))
 	}
 
 	if keyCount == 1 {
-		return []Key{{KeyName: "key", More: false}}
+		data.Keys = []Key{{KeyName: "key", More: false}}
+	} else {
+		for i := 0; i < keyCount; i++ {
+			key := Key{
+				KeyName: fmt.Sprintf("key%d_%d", i, keyCount),
+				More:    i != keyCount-1,
+			}
+			for j := 0; j < i; j++ {
+				key.EqualsBefore = append(key.EqualsBefore, &Key{
+					KeyName: fmt.Sprintf("key%d_%d", j, keyCount),
+					More:    j != i-1,
+				})
+			}
+			data.Keys = append(data.Keys, key)
+		}
 	}
 
-	result := []Key{}
+	defaultModuleName := "vanilla_binary_search_tree"
 
-	for i := 0; i < keyCount; i++ {
-		key := Key{
-			KeyName: fmt.Sprintf("key%d_%d", i, keyCount),
-			More:    i != keyCount-1,
-		}
-		for j := 0; j < i; j++ {
-			key.EqualsBefore = append(key.EqualsBefore, &Key{
-				KeyName: fmt.Sprintf("key%d_%d", j, keyCount),
-				More:    j != i-1,
-			})
-		}
-		result = append(result, key)
+	if cmd.Flags().Changed("module") {
+		defaultModuleName = data.ModuleName
 	}
 
-	return result
+	if data.IsAvl {
+		defaultModuleName = "avl"
+	} else if data.IsRb {
+		defaultModuleName = "red_black"
+	}
+
+	if data.ModulePostfix == "" {
+		data.ModuleName = defaultModuleName
+	} else {
+		data.ModuleName = fmt.Sprintf("%s_%s", defaultModuleName, data.ModulePostfix)
+	}
+
+	tmpl, err := template.New("temp").Parse(specTreeTemplate)
+	if err != nil {
+		panic(err)
+	}
+
+	var buf bytes.Buffer
+	err = tmpl.Execute(&buf, data)
+
+	if err != nil {
+		panic(err)
+	}
+
+	if err := os.WriteFile(data.OutputFileName, buf.Bytes(), 0o666); err != nil {
+		panic(err)
+	}
 }
 
-func getModuleName(modulePostfix, defaultName string) string {
-	if modulePostfix == "" {
-		return defaultName
-	}
-	return fmt.Sprintf("%s_%s", defaultName, modulePostfix)
-}
-
-func getSpecTreeCmd() *cobra.Command {
+func GetRedBlackCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "specific-tree",
-		Short: "generate specific tree types",
-		Args:  cobra.NoArgs,
+		Use:   "red-black",
+		Short: "generate red-black tree",
+		Long: `Generate red black tree based on GNU libavl https://adtinfo.org/
+`,
+	}
+	shared := SpecTreeData{
+		Shared:   NewShared("red_black", "red-black"),
+		IsRb:     true,
+		IsAvl:    false,
+		KeyCount: 1,
 	}
 
-	output := "./sources/binary_search_trees.move"
-	address := "container"
-	doVanilla := false
-	noRb := false
-	noAvl := false
-	noAssert := false
-	keyCount := 1
-	modulePostfix := ""
+	shared.SetSpecTreeData(cmd)
 
-	cmd.Flags().StringVarP(&output, "out", "o", output, "output file. this should be the in the sources folder of your move package module")
-	cmd.MarkFlagFilename("out")
-	cmd.Flags().StringVarP(&address, "address", "p", address, "(named) address")
-	cmd.Flags().BoolVar(&doVanilla, "include-vanilla-tree", doVanilla, "include vanila tree")
-	cmd.Flags().BoolVar(&noRb, "no-red-black-tree", noRb, "turn off red/black tree")
-	cmd.Flags().BoolVar(&noAvl, "no-avl", noAvl, "turn off avl tree")
-	cmd.Flags().BoolVar(&noAssert, "no-assert", noAssert, "turn off assert")
-	cmd.Flags().IntVar(&keyCount, "key-count", keyCount, "number of keys for the tree")
-	cmd.Flags().StringVar(&modulePostfix, "module-postfix", modulePostfix, "postfix for module name")
+	return cmd
+}
 
-	cmd.Run = func(_ *cobra.Command, _ []string) {
-		if noRb && noAvl && !doVanilla {
-			panic("all output tree types are turned off.")
-		}
-
-		tmpl, err := template.New("temp").Parse(specTreeTemplate)
-		if err != nil {
-			panic(err)
-		}
-
-		var buf bytes.Buffer
-
-		if !noRb {
-			data := SpecTreeData{
-				Address:      address,
-				IsRb:         true,
-				ModuleName:   getModuleName(modulePostfix, "red_black_tree"),
-				TreeType:     "RedBlackTree",
-				NeedMetadata: true,
-				DoAssert:     !noAssert,
-				Keys:         genKeyList(keyCount),
-				DoTest:       keyCount == 1,
-			}
-
-			err = tmpl.Execute(&buf, &data)
-
-			if err != nil {
-				panic(err)
-			}
-		}
-
-		if !noAvl {
-			data := SpecTreeData{
-				Address:      address,
-				IsAvl:        true,
-				ModuleName:   getModuleName(modulePostfix, "avl_tree"),
-				TreeType:     "AvlTree",
-				NeedMetadata: true,
-				DoAssert:     !noAssert,
-				Keys:         genKeyList(keyCount),
-				DoTest:       keyCount == 1,
-			}
-
-			err = tmpl.Execute(&buf, &data)
-
-			if err != nil {
-				panic(err)
-			}
-		}
-
-		if doVanilla {
-			data := SpecTreeData{
-				Address:    address,
-				ModuleName: getModuleName(modulePostfix, "vanilla_tree"),
-				TreeType:   "VanillaTree",
-				DoAssert:   !noAssert,
-				Keys:       genKeyList(keyCount),
-				DoTest:     keyCount == 1,
-			}
-
-			err = tmpl.Execute(&buf, &data)
-
-			if err != nil {
-				panic(err)
-			}
-		}
-
-		os.WriteFile(output, buf.Bytes(), 0o666)
+func GetAvlCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "avl",
+		Short: "generate avl tree",
+		Long: `Generate avl tree based on GNU libavl https://adtinfo.org/
+`,
 	}
+	shared := SpecTreeData{
+		Shared:   NewShared("avl", "avl"),
+		IsRb:     false,
+		IsAvl:    true,
+		KeyCount: 1,
+	}
+
+	shared.SetSpecTreeData(cmd)
+
+	return cmd
+}
+
+func GetVanillaBinarySearchTreeCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "bst",
+		Short: "generate vanilla (b)inary (s)earch (t)ree",
+		Long: `Generate vanilla binary search tree based on GNU libavl https://adtinfo.org/
+`,
+	}
+	shared := SpecTreeData{
+		Shared:   NewShared("bst", "bst"),
+		IsRb:     false,
+		IsAvl:    false,
+		KeyCount: 1,
+	}
+
+	shared.SetSpecTreeData(cmd)
 
 	return cmd
 }

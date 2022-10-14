@@ -1,13 +1,20 @@
-// gen-move-container
-//
-// generate containers for move.
-// - binary search tree with AVL rebalance.
 package main
 
-func main() {
-	cmd := getOrderedTreeCmd()
+import "github.com/spf13/cobra"
 
-	cmd.AddCommand(getSpecTreeCmd())
+func main() {
+	cmd := &cobra.Command{
+		Use:   "gen-move-container",
+		Short: "generate container types for move",
+		Long:  longDescription,
+	}
+
+	cmd.AddCommand(
+		GetRedBlackCmd(),
+		GetAvlCmd(),
+		GetVanillaBinarySearchTreeCmd(),
+		GetCritbitTreeCmd(),
+	)
 
 	cmd.Execute()
 }

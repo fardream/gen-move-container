@@ -1,7 +1,7 @@
 // Code generated from github.com/fardream/gen-move-container
 // Caution when editing manually.
 // critbit tree based on http://github.com/agl/critbit
-module container::critbit {
+module {{.Address}}::{{.ModuleName}} {
     use std::vector;
 
     const E_INVALID_ARGUMENT: u64 = 1;
