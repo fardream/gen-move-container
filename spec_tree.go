@@ -84,22 +84,8 @@ func (data *SpecTreeData) Run(cmd *cobra.Command, _ []string) {
 		}
 	}
 
-	defaultModuleName := "vanilla_binary_search_tree"
-
-	if cmd.Flags().Changed("module") {
-		defaultModuleName = data.ModuleName
-	}
-
-	if data.IsAvl {
-		defaultModuleName = "avl"
-	} else if data.IsRb {
-		defaultModuleName = "red_black"
-	}
-
-	if data.ModulePostfix == "" {
-		data.ModuleName = defaultModuleName
-	} else {
-		data.ModuleName = fmt.Sprintf("%s_%s", defaultModuleName, data.ModulePostfix)
+	if data.ModulePostfix != "" {
+		data.ModuleName = fmt.Sprintf("%s_%s", data.ModuleName, data.ModulePostfix)
 	}
 
 	tmpl, err := template.New("temp").Parse(specTreeTemplate)
@@ -165,7 +151,7 @@ func GetVanillaBinarySearchTreeCmd() *cobra.Command {
 `,
 	}
 	shared := SpecTreeData{
-		Shared:   NewShared("bst", "bst"),
+		Shared:   NewShared("vanilla_binary_search_tree", "bst"),
 		IsRb:     false,
 		IsAvl:    false,
 		KeyCount: 1,

@@ -2,7 +2,24 @@
 // Caution when editing manually.
 // Tree based on GNU libavl https://adtinfo.org/
 module container::red_black {
-    use std::vector::{Self, swap, is_empty, push_back, pop_back};
+    use aptos_std::table_with_length::{Self as table, TableWithLength as Table};
+    fun swap<V>(table: &mut Table<u64, V>, i: u64, j: u64) {
+        let i_item = table::remove(table, i);
+        let j_item = table::remove(table, j);
+        table::add(table, j, i_item);
+        table::add(table, i, j_item);
+    }
+    fun push_back<V>(t: &mut Table<u64, V>, v: V) {
+        let i = table::length(t);
+        table::add(t, i, v)
+    }
+    fun pop_back<V>(t: &mut Table<u64, V>): V {
+        let i = table::length(t) - 1;
+        table::remove(t, i)
+    }
+    fun is_empty<V>(t: &Table<u64, V>): bool {
+        table::length(t) == 0
+    }
 
     const E_INVALID_ARGUMENT: u64 = 1;
     const E_KEY_ALREADY_EXIST: u64 = 2;
@@ -79,18 +96,18 @@ module container::red_black {
     }
 
     /// RedBlackTree contains a vector of Entry<V>, which is triple-linked binary search tree.
-    struct RedBlackTree<V> has store, copy, drop {
+    struct RedBlackTree<V> has store {
         root: u64,
-        entries: vector<Entry<V>>,
+        entries: Table<u64, Entry<V>>,
         min_index: u64,
         max_index: u64,
     }
 
     /// create new tree
-    public fun new<V>(): RedBlackTree<V> {
+    public fun new<V: store>(): RedBlackTree<V> {
         RedBlackTree {
             root: NULL_INDEX,
-            entries: vector::empty<Entry<V>>(),
+            entries: table::new(),
             min_index: NULL_INDEX,
             max_index: NULL_INDEX,
         }
@@ -105,7 +122,7 @@ module container::red_black {
         let current = tree.root;
 
         while(current != NULL_INDEX) {
-            let node = vector::borrow(&tree.entries, current);
+            let node = table::borrow(&tree.entries, current);
             if (node.key == key) {
                 return current
             };
@@ -122,24 +139,24 @@ module container::red_black {
 
     /// borrow returns a reference to the element with its key at the given index
     public fun borrow_at_index<V>(tree: &RedBlackTree<V>, index: u64): (u128, &V) {
-        let entry = vector::borrow(&tree.entries, index);
+        let entry = table::borrow(&tree.entries, index);
         (entry.key, &entry.value)
     }
 
     /// borrow_mut returns a mutable reference to the element with its key at the given index
     public fun borrow_at_index_mut<V>(tree: &mut RedBlackTree<V>, index: u64): (u128, &mut V) {
-        let entry = vector::borrow_mut(&mut tree.entries, index);
+        let entry = table::borrow_mut(&mut tree.entries, index);
         (entry.key, &mut entry.value)
     }
 
     /// size returns the number of elements in the RedBlackTree.
     public fun size<V>(tree: &RedBlackTree<V>): u64 {
-        vector::length(&tree.entries)
+        table::length(&tree.entries)
     }
 
     /// empty returns true if the RedBlackTree is empty.
     public fun empty<V>(tree: &RedBlackTree<V>): bool {
-        vector::length(&tree.entries) == 0
+        table::length(&tree.entries) == 0
     }
 
     /// get index of the min of the tree.
@@ -152,11 +169,11 @@ module container::red_black {
     /// get index of the min of the subtree with root at index.
     public fun get_min_index_from<V>(tree: &RedBlackTree<V>, index: u64): u64 {
         let current = index;
-        let left_child = vector::borrow(&tree.entries, current).left_child;
+        let left_child = table::borrow(&tree.entries, current).left_child;
 
         while (left_child != NULL_INDEX) {
             current = left_child;
-            left_child = vector::borrow(&tree.entries, current).left_child;
+            left_child = table::borrow(&tree.entries, current).left_child;
         };
 
         current
@@ -172,11 +189,11 @@ module container::red_black {
     /// get index of the max of the subtree with root at index.
     public fun get_max_index_from<V>(tree: &RedBlackTree<V>, index: u64): u64 {
         let current = index;
-        let right_child = vector::borrow(&tree.entries, current).right_child;
+        let right_child = table::borrow(&tree.entries, current).right_child;
 
         while (right_child != NULL_INDEX) {
             current = right_child;
-            right_child = vector::borrow(&tree.entries, current).right_child;
+            right_child = table::borrow(&tree.entries, current).right_child;
         };
 
         current
@@ -185,7 +202,7 @@ module container::red_black {
     /// find next value in order (the key is increasing)
     public fun next_in_order<V>(tree: &RedBlackTree<V>, index: u64): u64 {
         assert!(index != NULL_INDEX, E_INVALID_INDEX);
-        let node = vector::borrow(&tree.entries, index);
+        let node = table::borrow(&tree.entries, index);
         let right_child = node.right_child;
         let parent = node.parent;
 
@@ -193,10 +210,10 @@ module container::red_black {
             // first, check if right child is null.
             // then go to right child, and check if there is left child.
             let next = right_child;
-            let next_left = vector::borrow(&tree.entries, next).left_child;
+            let next_left = table::borrow(&tree.entries, next).left_child;
             while (next_left != NULL_INDEX) {
                 next = next_left;
-                next_left = vector::borrow(&tree.entries, next).left_child;
+                next_left = table::borrow(&tree.entries, next).left_child;
             };
 
            next
@@ -207,7 +224,7 @@ module container::red_black {
             let current = index;
             while(parent != NULL_INDEX && is_right_child(tree, current, parent)) {
                 current = parent;
-                parent = vector::borrow(&tree.entries, current).parent;
+                parent = table::borrow(&tree.entries, current).parent;
             };
 
             parent
@@ -219,17 +236,17 @@ module container::red_black {
     /// find next value in reverse order (the key is decreasing)
     public fun next_in_reverse_order<V>(tree: &RedBlackTree<V>, index: u64): u64 {
         assert!(index != NULL_INDEX, E_INVALID_INDEX);
-        let node = vector::borrow(&tree.entries, index);
+        let node = table::borrow(&tree.entries, index);
         let left_child = node.left_child;
         let parent = node.parent;
         if (left_child != NULL_INDEX) {
             // first, check if left child is null.
             // then go to left child, and check if there is right child.
             let next = left_child;
-            let next_right = vector::borrow(&tree.entries, next).right_child;
+            let next_right = table::borrow(&tree.entries, next).right_child;
             while (next_right != NULL_INDEX) {
                 next = next_right;
-                next_right = vector::borrow(&tree.entries, next).right_child;
+                next_right = table::borrow(&tree.entries, next).right_child;
             };
 
            next
@@ -240,7 +257,7 @@ module container::red_black {
             let current = index;
             while(parent != NULL_INDEX && is_left_child(tree, current, parent)) {
                 current = parent;
-                parent = vector::borrow(&tree.entries, current).parent;
+                parent = table::borrow(&tree.entries, current).parent;
             };
 
             parent
@@ -270,7 +287,7 @@ module container::red_black {
         let is_right_child = false;
 
         while (insert != NULL_INDEX) {
-            let insert_node = vector::borrow(&tree.entries, insert);
+            let insert_node = table::borrow(&tree.entries, insert);
             assert!((insert_node.key != key), E_KEY_ALREADY_EXIST);
             parent = insert;
             is_right_child = ((insert_node.key < key));
@@ -289,12 +306,12 @@ module container::red_black {
             } else {
                 replace_left_child(tree, parent, node);
             };
-            let max_node = vector::borrow(&tree.entries, tree.max_index);
+            let max_node = table::borrow(&tree.entries, tree.max_index);
             let is_max_smaller = ((max_node.key < key));
             if (is_max_smaller) {
                 tree.max_index = node;
             };
-            let min_node = vector::borrow(&tree.entries, tree.min_index);
+            let min_node = table::borrow(&tree.entries, tree.min_index);
             let is_min_bigger = ((min_node.key > key));
             if (is_min_bigger) {
                 tree.min_index = node;
@@ -307,17 +324,17 @@ module container::red_black {
 
         // updat red black tree metadata
         while (parent != NULL_INDEX) {
-            let parent_metadata = vector::borrow(&tree.entries, parent).metadata;
+            let parent_metadata = table::borrow(&tree.entries, parent).metadata;
             if (parent_metadata == RB_BLACK) {
                 break
             };
 
             parent = rb_update_insert(tree, parent, is_right_child);
-            parent_metadata = vector::borrow(&tree.entries, parent).metadata;
+            parent_metadata = table::borrow(&tree.entries, parent).metadata;
             if (parent_metadata == RB_BLACK) {
                 break
             };
-            let new_parent = vector::borrow(&tree.entries, parent).parent;
+            let new_parent = table::borrow(&tree.entries, parent).parent;
             if (new_parent == NULL_INDEX) {
                 break
             };
@@ -327,7 +344,7 @@ module container::red_black {
 
         if (tree.root != NULL_INDEX) {
             let root = tree.root;
-            vector::borrow_mut(&mut tree.entries, root).metadata = RB_BLACK;
+            table::borrow_mut(&mut tree.entries, root).metadata = RB_BLACK;
         };
     }
 
@@ -340,7 +357,7 @@ module container::red_black {
             tree.min_index = next_in_order(tree, index);
         };
 
-        let node = vector::borrow(&tree.entries, index);
+        let node = table::borrow(&tree.entries, index);
         let parent = node.parent;
         let left_child = node.left_child;
         let right_child = node.right_child;
@@ -388,7 +405,7 @@ module container::red_black {
             };
             (parent, is_right)
         } else {
-            let right_child_s_left = vector::borrow(&tree.entries, right_child).left_child;
+            let right_child_s_left = table::borrow(&tree.entries, right_child).left_child;
             if (right_child_s_left == NULL_INDEX) {
                 // right child is not null, and right child's left child is null
                 //              index
@@ -409,10 +426,10 @@ module container::red_black {
                     replace_child(tree, parent, index, right_child);
                 };
 
-                let old_metadata = vector::borrow(&tree.entries, index).metadata;
-                let replaced_metadata = vector::borrow(&tree.entries, right_child).metadata;
-                vector::borrow_mut(&mut tree.entries, right_child).metadata = old_metadata;
-                vector::borrow_mut(&mut tree.entries, index).metadata = replaced_metadata;
+                let old_metadata = table::borrow(&tree.entries, index).metadata;
+                let replaced_metadata = table::borrow(&tree.entries, right_child).metadata;
+                table::borrow_mut(&mut tree.entries, right_child).metadata = old_metadata;
+                table::borrow_mut(&mut tree.entries, index).metadata = replaced_metadata;
 
                 (right_child, true)
             } else {
@@ -435,7 +452,7 @@ module container::red_black {
                 //                     /
                 //                    a
                 let next_successor = get_min_index_from(tree, right_child_s_left);
-                let next_successor_node = vector::borrow(&tree.entries, next_successor);
+                let next_successor_node = table::borrow(&tree.entries, next_successor);
                 let successor_parent = next_successor_node.parent;
                 let next_successor_right = next_successor_node.right_child;
 
@@ -450,16 +467,16 @@ module container::red_black {
                     replace_child(tree, parent, index, next_successor);
                 };
 
-                let old_metadata = vector::borrow(&tree.entries, index).metadata;
-                let replaced_metadata = vector::borrow(&tree.entries, next_successor).metadata;
-                vector::borrow_mut(&mut tree.entries, next_successor).metadata = old_metadata;
-                vector::borrow_mut(&mut tree.entries, index).metadata = replaced_metadata;
+                let old_metadata = table::borrow(&tree.entries, index).metadata;
+                let replaced_metadata = table::borrow(&tree.entries, next_successor).metadata;
+                table::borrow_mut(&mut tree.entries, next_successor).metadata = old_metadata;
+                table::borrow_mut(&mut tree.entries, index).metadata = replaced_metadata;
 
                 (successor_parent, false)
             }
         };
 
-        let removal_metadata = vector::borrow(&tree.entries, index).metadata;
+        let removal_metadata = table::borrow(&tree.entries, index).metadata;
         while (rebalance_start != NULL_INDEX) {
             let (do_continue, new_start) = rb_update_remove(tree, rebalance_start, is_new_right, removal_metadata);
             if (!do_continue) {
@@ -474,7 +491,7 @@ module container::red_black {
 
         if (tree.root != NULL_INDEX) {
             let root = tree.root;
-            vector::borrow_mut(&mut tree.entries, root).metadata = RB_BLACK;
+            table::borrow_mut(&mut tree.entries, root).metadata = RB_BLACK;
         };
 
         // swap index for pop out.
@@ -490,7 +507,7 @@ module container::red_black {
             if (tree.min_index == last_index) {
                 tree.min_index = index;
             };
-            let node = vector::borrow(&tree.entries, index);
+            let node = table::borrow(&tree.entries, index);
             let parent = node.parent;
             let left_child = node.left_child;
             let right_child = node.right_child;
@@ -513,7 +530,7 @@ module container::red_black {
     public fun destroy_empty<V>(tree: RedBlackTree<V>) {
         let RedBlackTree { entries, root: _, min_index: _, max_index: _ } = tree;
         assert!(is_empty(&entries), E_TREE_NOT_EMPTY);
-        vector::destroy_empty(entries);
+        table::destroy_empty(entries);
     }
 
     /// check if index is the right child of parent.
@@ -521,7 +538,7 @@ module container::red_black {
     fun is_right_child<V>(tree: &RedBlackTree<V>, index: u64, parent_index: u64): bool {
         assert!(parent_index != NULL_INDEX, E_PARENT_NULL);
         assert!(parent_index < size(tree), E_PARENT_INDEX_OUT_OF_RANGE);
-        vector::borrow(&tree.entries, parent_index).right_child == index
+        table::borrow(&tree.entries, parent_index).right_child == index
     }
 
     /// check if index is the left child of parent.
@@ -529,7 +546,7 @@ module container::red_black {
     fun is_left_child<V>(tree: &RedBlackTree<V>, index: u64, parent_index: u64): bool {
         assert!(parent_index != NULL_INDEX, E_PARENT_NULL);
         assert!(parent_index < size(tree), E_PARENT_INDEX_OUT_OF_RANGE);
-        vector::borrow(&tree.entries, parent_index).left_child == index
+        table::borrow(&tree.entries, parent_index).left_child == index
     }
 
     /// Replace the child of parent if parent_index is not NULL_INDEX.
@@ -548,9 +565,9 @@ module container::red_black {
     /// also replace parent index of the child.
     fun replace_left_child<V>(tree: &mut RedBlackTree<V>, parent_index: u64, new_child: u64) {
         if (parent_index != NULL_INDEX) {
-            vector::borrow_mut(&mut tree.entries, parent_index).left_child = new_child;
+            table::borrow_mut(&mut tree.entries, parent_index).left_child = new_child;
             if (new_child != NULL_INDEX) {
-                vector::borrow_mut(&mut tree.entries, new_child).parent = parent_index;
+                table::borrow_mut(&mut tree.entries, new_child).parent = parent_index;
             };
         }
     }
@@ -559,9 +576,9 @@ module container::red_black {
     /// also replace parent index of the child.
     fun replace_right_child<V>(tree: &mut RedBlackTree<V>, parent_index: u64, new_child: u64) {
         if (parent_index != NULL_INDEX) {
-            vector::borrow_mut(&mut tree.entries, parent_index).right_child = new_child;
+            table::borrow_mut(&mut tree.entries, parent_index).right_child = new_child;
                 if (new_child != NULL_INDEX) {
-                vector::borrow_mut(&mut tree.entries, new_child).parent = parent_index;
+                table::borrow_mut(&mut tree.entries, new_child).parent = parent_index;
             };
         }
     }
@@ -569,7 +586,7 @@ module container::red_black {
     /// replace parent of index if index is not NULL_INDEX.
     fun replace_parent<V>(tree: &mut RedBlackTree<V>, index: u64, parent_index: u64) {
         if (index != NULL_INDEX) {
-            vector::borrow_mut(&mut tree.entries, index).parent = parent_index;
+            table::borrow_mut(&mut tree.entries, index).parent = parent_index;
         }
     }
 
@@ -584,13 +601,13 @@ module container::red_black {
     ///              x          index
     ///                       y       right
     fun rotate_right<V>(tree: &mut RedBlackTree<V>, index: u64) {
-        let node = vector::borrow(&tree.entries, index);
+        let node = table::borrow(&tree.entries, index);
         let left = node.left_child;
         assert!(
             left != NULL_INDEX,
             E_RIGHT_ROTATE_LEFT_CHILD_NULL
         );
-        let y = vector::borrow(&tree.entries, left).right_child;
+        let y = table::borrow(&tree.entries, left).right_child;
 
         let parent = node.parent;
 
@@ -617,13 +634,13 @@ module container::red_black {
     ///          index             y
     ///      left        x
     fun rotate_left<V>(tree: &mut RedBlackTree<V>, index: u64) {
-        let node = vector::borrow(&tree.entries, index);
+        let node = table::borrow(&tree.entries, index);
         let right = node.right_child;
         assert!(
             right != NULL_INDEX,
             E_INVALID_ARGUMENT,
         );
-        let x = vector::borrow(&tree.entries, right).left_child;
+        let x = table::borrow(&tree.entries, right).left_child;
 
         let parent = node.parent;
 
@@ -646,7 +663,7 @@ module container::red_black {
     // returns
     // - the parent tree.
     fun rb_update_insert<V>(tree: &mut RedBlackTree<V>, index: u64, is_right: bool): u64 {
-        let node = vector::borrow(&tree.entries, index);
+        let node = table::borrow(&tree.entries, index);
         // make sure the index right now is red
         assert!(
             node.metadata == RB_RED,
@@ -661,7 +678,7 @@ module container::red_black {
         };
 
         assert!(
-            vector::borrow(&tree.entries, red_child).metadata == RB_RED,
+            table::borrow(&tree.entries, red_child).metadata == RB_RED,
             E_RB_NOT_RED_NODE,
         );
 
@@ -674,7 +691,7 @@ module container::red_black {
         );
 
         assert!(
-            vector::borrow(&tree.entries, parent).metadata == RB_BLACK,
+            table::borrow(&tree.entries, parent).metadata == RB_BLACK,
             E_RB_RED_HAS_RED_PARENT,
         );
 
@@ -683,8 +700,8 @@ module container::red_black {
         if (!is_index_right) {
             // index is the left child of parent
             //
-            let uncle = vector::borrow(&tree.entries, parent).right_child;
-            if (uncle != NULL_INDEX && vector::borrow(&tree.entries, uncle).metadata == RB_RED) {
+            let uncle = table::borrow(&tree.entries, parent).right_child;
+            if (uncle != NULL_INDEX && table::borrow(&tree.entries, uncle).metadata == RB_RED) {
                 // case 1, uncle is red
                 // recolor parent, index, and uncle.
                 //
@@ -699,9 +716,9 @@ module container::red_black {
                 //  index (b)     uncle(b)
                 //   /
                 //  rec_child (r)
-                vector::borrow_mut(&mut tree.entries, parent).metadata = RB_RED;
-                vector::borrow_mut(&mut tree.entries, index).metadata = RB_BLACK;
-                vector::borrow_mut(&mut tree.entries, uncle).metadata = RB_BLACK;
+                table::borrow_mut(&mut tree.entries, parent).metadata = RB_RED;
+                table::borrow_mut(&mut tree.entries, index).metadata = RB_BLACK;
+                table::borrow_mut(&mut tree.entries, uncle).metadata = RB_BLACK;
                 parent
             } else if (!is_right) {
                 // case 2, red_child is left child of index
@@ -716,8 +733,8 @@ module container::red_black {
                 //          /           \
                 //     red_child(r)     parent(r)
                 rotate_right(tree, parent);
-                vector::borrow_mut(&mut tree.entries, parent).metadata = RB_RED;
-                vector::borrow_mut(&mut tree.entries, index).metadata = RB_BLACK;
+                table::borrow_mut(&mut tree.entries, parent).metadata = RB_RED;
+                table::borrow_mut(&mut tree.entries, index).metadata = RB_BLACK;
                 index
             } else {
                 // case 3, red_child is right child of the index
@@ -733,13 +750,13 @@ module container::red_black {
                 //     index(r)     parent(r)
                 rotate_left(tree, index);
                 rotate_right(tree, parent);
-                vector::borrow_mut(&mut tree.entries, red_child).metadata = RB_BLACK;
-                vector::borrow_mut(&mut tree.entries, parent).metadata = RB_RED;
+                table::borrow_mut(&mut tree.entries, red_child).metadata = RB_BLACK;
+                table::borrow_mut(&mut tree.entries, parent).metadata = RB_RED;
                 red_child
             }
         } else {
-            let uncle = vector::borrow(&tree.entries, parent).left_child;
-            if (uncle != NULL_INDEX && vector::borrow(&tree.entries, uncle).metadata == RB_RED) {
+            let uncle = table::borrow(&tree.entries, parent).left_child;
+            if (uncle != NULL_INDEX && table::borrow(&tree.entries, uncle).metadata == RB_RED) {
                 // case 1, uncle is red
                 // recolor parent, index, and uncle.
                 //
@@ -754,9 +771,9 @@ module container::red_black {
                 //  uncle(b)     index (b)
                 //                 /
                 //            rec_child (r)
-                vector::borrow_mut(&mut tree.entries, parent).metadata = RB_RED;
-                vector::borrow_mut(&mut tree.entries, index).metadata = RB_BLACK;
-                vector::borrow_mut(&mut tree.entries, uncle).metadata = RB_BLACK;
+                table::borrow_mut(&mut tree.entries, parent).metadata = RB_RED;
+                table::borrow_mut(&mut tree.entries, index).metadata = RB_BLACK;
+                table::borrow_mut(&mut tree.entries, uncle).metadata = RB_BLACK;
                 parent
             } else if (is_right) {
                 // case 2, red_child is right child of index
@@ -771,8 +788,8 @@ module container::red_black {
                 //          /           \
                 //      parent(r)      red_child(r)
                 rotate_left(tree, parent);
-                vector::borrow_mut(&mut tree.entries, parent).metadata = RB_RED;
-                vector::borrow_mut(&mut tree.entries, index).metadata = RB_BLACK;
+                table::borrow_mut(&mut tree.entries, parent).metadata = RB_RED;
+                table::borrow_mut(&mut tree.entries, index).metadata = RB_BLACK;
                 index
             } else {
                 // case 3, red_child is left child of the index
@@ -788,8 +805,8 @@ module container::red_black {
                 //     parent(r)       index(r)
                 rotate_right(tree, index);
                 rotate_left(tree, parent);
-                vector::borrow_mut(&mut tree.entries, red_child).metadata = RB_BLACK;
-                vector::borrow_mut(&mut tree.entries, parent).metadata = RB_RED;
+                table::borrow_mut(&mut tree.entries, red_child).metadata = RB_BLACK;
+                table::borrow_mut(&mut tree.entries, parent).metadata = RB_RED;
                 red_child
             }
         }
@@ -802,7 +819,7 @@ module container::red_black {
             return (false, index)
         };
 
-        let node = vector::borrow(&tree.entries, index);
+        let node = table::borrow(&tree.entries, index);
         // get the new child.
         let child = if (is_right) {
             node.right_child
@@ -819,8 +836,8 @@ module container::red_black {
 
         let index_color = node.metadata;
 
-        if (child != NULL_INDEX && vector::borrow(&tree.entries, child).metadata == RB_RED) {
-            vector::borrow_mut(&mut tree.entries, child).metadata = RB_BLACK;
+        if (child != NULL_INDEX && table::borrow(&tree.entries, child).metadata == RB_RED) {
+            table::borrow_mut(&mut tree.entries, child).metadata = RB_BLACK;
             return (false, index)
         };
 
@@ -848,7 +865,7 @@ module container::red_black {
             //          index(r)     D(b)
             //          /         \
             //   child(null or b) B(b)
-            let sibling_color = vector::borrow(&tree.entries, w).metadata;
+            let sibling_color = table::borrow(&tree.entries, w).metadata;
             if (sibling_color == RB_RED) {
                 assert!(
                     index_color == RB_BLACK,
@@ -856,30 +873,30 @@ module container::red_black {
                 );
 
                 rotate_left(tree, index);
-                vector::borrow_mut(&mut tree.entries, w).metadata = RB_BLACK;
-                vector::borrow_mut(&mut tree.entries, index).metadata = RB_RED;
+                table::borrow_mut(&mut tree.entries, w).metadata = RB_BLACK;
+                table::borrow_mut(&mut tree.entries, index).metadata = RB_RED;
                 index_color = RB_RED;
 
-                w = vector::borrow(&tree.entries, index).right_child;
+                w = table::borrow(&tree.entries, index).right_child;
                 assert!(
-                    vector::borrow(&tree.entries, w).metadata == RB_BLACK,
+                    table::borrow(&tree.entries, w).metadata == RB_BLACK,
                     E_RB_SIBLING_FAIL_BLACK,
                 );
             };
 
             // Now both siblings are black
-            let w_node = vector::borrow(&tree.entries, w);
+            let w_node = table::borrow(&tree.entries, w);
             let w_left = w_node.left_child;
             let w_right = w_node.right_child;
-            let w_left_not_red = w_left == NULL_INDEX || vector::borrow(&tree.entries, w_left).metadata == RB_BLACK;
-            let w_right_not_red = w_right == NULL_INDEX || vector::borrow(&tree.entries, w_right).metadata == RB_BLACK;
+            let w_left_not_red = w_left == NULL_INDEX || table::borrow(&tree.entries, w_left).metadata == RB_BLACK;
+            let w_right_not_red = w_right == NULL_INDEX || table::borrow(&tree.entries, w_right).metadata == RB_BLACK;
             if (w_left_not_red && w_right_not_red) {
                 // case 1, if both of w's child are not red, color it red
                 //            index
                 //           /     \
                 //         child   w (b)
-                vector::borrow_mut(&mut tree.entries, w).metadata = RB_RED;
-                (true, vector::borrow(&tree.entries, index).parent)
+                table::borrow_mut(&mut tree.entries, w).metadata = RB_RED;
+                (true, table::borrow(&tree.entries, index).parent)
             } else if (!w_right_not_red) {
                 // case 2, w's right child is red, left rotate at index
                 //           index
@@ -894,9 +911,9 @@ module container::red_black {
                 //      /    \
                 //    child  E
                 rotate_left(tree, index);
-                vector::borrow_mut(&mut tree.entries, w).metadata = index_color;
-                vector::borrow_mut(&mut tree.entries, index).metadata = RB_BLACK;
-                vector::borrow_mut(&mut tree.entries, w_right).metadata = RB_BLACK;
+                table::borrow_mut(&mut tree.entries, w).metadata = index_color;
+                table::borrow_mut(&mut tree.entries, index).metadata = RB_BLACK;
+                table::borrow_mut(&mut tree.entries, w_right).metadata = RB_BLACK;
                 (false, index)
             } else {
                 // case 3, w's left child is red,
@@ -923,8 +940,8 @@ module container::red_black {
                 //   child              D
                 rotate_right(tree, w);
                 rotate_left(tree, index);
-                vector::borrow_mut(&mut tree.entries, w_left).metadata = index_color;
-                vector::borrow_mut(&mut tree.entries, index).metadata = RB_BLACK;
+                table::borrow_mut(&mut tree.entries, w_left).metadata = index_color;
+                table::borrow_mut(&mut tree.entries, index).metadata = RB_BLACK;
                 (false, index)
             }
         } else {
@@ -941,7 +958,7 @@ module container::red_black {
             //         B(b)           index(r)
             //                        /      \
             //                      D(b)    child(null or b)
-             let sibling_color = vector::borrow(&tree.entries, w).metadata;
+             let sibling_color = table::borrow(&tree.entries, w).metadata;
              if (sibling_color == RB_RED) {
                 assert!(
                     index_color == RB_BLACK,
@@ -949,31 +966,31 @@ module container::red_black {
                 );
 
                 rotate_right(tree, index);
-                vector::borrow_mut(&mut tree.entries, w).metadata = RB_BLACK;
-                vector::borrow_mut(&mut tree.entries, index).metadata = RB_RED;
+                table::borrow_mut(&mut tree.entries, w).metadata = RB_BLACK;
+                table::borrow_mut(&mut tree.entries, index).metadata = RB_RED;
                 index_color = RB_RED;
 
-                w = vector::borrow(&tree.entries, index).left_child;
+                w = table::borrow(&tree.entries, index).left_child;
 
                 assert!(
-                    vector::borrow(&tree.entries, w).metadata == RB_BLACK,
+                    table::borrow(&tree.entries, w).metadata == RB_BLACK,
                     E_RB_SIBLING_FAIL_BLACK,
                 );
              };
 
             // Now both siblings are black
-            let w_node = vector::borrow(&tree.entries, w);
+            let w_node = table::borrow(&tree.entries, w);
             let w_left = w_node.left_child;
             let w_right = w_node.right_child;
-            let w_left_not_red = w_left == NULL_INDEX || vector::borrow(&tree.entries, w_left).metadata == RB_BLACK;
-            let w_right_not_red = w_right == NULL_INDEX || vector::borrow(&tree.entries, w_right).metadata == RB_BLACK;
+            let w_left_not_red = w_left == NULL_INDEX || table::borrow(&tree.entries, w_left).metadata == RB_BLACK;
+            let w_right_not_red = w_right == NULL_INDEX || table::borrow(&tree.entries, w_right).metadata == RB_BLACK;
             if (w_left_not_red && w_right_not_red) {
                 // case 1, if both of w's child are not red, color it red
                 //            index
                 //           /     \
                 //        w (b)    child
-                vector::borrow_mut(&mut tree.entries, w).metadata = RB_RED;
-                (true, vector::borrow(&tree.entries, index).parent)
+                table::borrow_mut(&mut tree.entries, w).metadata = RB_RED;
+                (true, table::borrow(&tree.entries, index).parent)
             } else if (!w_left_not_red) {
                 // case 2, w's left child is red, right rotate at index
                 //           index
@@ -988,9 +1005,9 @@ module container::red_black {
                 //                /   \
                 //               E   child
                 rotate_right(tree, index);
-                vector::borrow_mut(&mut tree.entries, w).metadata = index_color;
-                vector::borrow_mut(&mut tree.entries, index).metadata = RB_BLACK;
-                vector::borrow_mut(&mut tree.entries, w_left).metadata = RB_BLACK;
+                table::borrow_mut(&mut tree.entries, w).metadata = index_color;
+                table::borrow_mut(&mut tree.entries, index).metadata = RB_BLACK;
+                table::borrow_mut(&mut tree.entries, w_left).metadata = RB_BLACK;
                 (false, index)
             } else {
                 // case 3, w's right child is red,
@@ -1017,228 +1034,10 @@ module container::red_black {
                 //    D               child
                 rotate_left(tree, w);
                 rotate_right(tree, index);
-                vector::borrow_mut(&mut tree.entries, w_right).metadata = index_color;
-                vector::borrow_mut(&mut tree.entries, index).metadata = RB_BLACK;
+                table::borrow_mut(&mut tree.entries, w_right).metadata = index_color;
+                table::borrow_mut(&mut tree.entries, index).metadata = RB_BLACK;
                 (false, index)
             }
         }
-    }
-
-    #[test]
-    fun test_redblack() {
-        let tree = new<u128>();
-        insert(&mut tree, 6, 6);
-        insert(&mut tree, 5, 5);
-        insert(&mut tree, 4, 4);
-        let v = vector<Entry<u128>> [
-            new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, RB_RED),
-            new_entry_for_test<u128>(5, 5, NULL_INDEX, 2, 0, RB_BLACK),
-            new_entry_for_test<u128>(4, 4, 1, NULL_INDEX, NULL_INDEX, RB_RED),
-        ];
-
-        assert!(tree.root == 1, tree.root);
-        assert!(&tree.entries == &v, 2);
-
-        let v = vector<Entry<u128>> [
-            new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, RB_BLACK),
-            new_entry_for_test<u128>(5, 5, NULL_INDEX, 2, 0, RB_BLACK),
-            new_entry_for_test<u128>(4, 4, 1, 3, NULL_INDEX, RB_BLACK),
-            new_entry_for_test<u128>(1, 1, 2, NULL_INDEX, NULL_INDEX, RB_RED),
-        ];
-
-        insert(&mut tree, 1, 1);
-        assert!(&tree.entries == &v, 3);
-
-        let v = vector<Entry<u128>> [
-            new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, RB_BLACK),
-            new_entry_for_test<u128>(5, 5, NULL_INDEX, 4, 0, RB_BLACK),
-            new_entry_for_test<u128>(4, 4, 4, NULL_INDEX, NULL_INDEX, RB_RED),
-            new_entry_for_test<u128>(1, 1, 4, NULL_INDEX, NULL_INDEX, RB_RED),
-            new_entry_for_test<u128>(3, 3, 1, 3, 2, RB_BLACK),
-        ];
-        insert(&mut tree, 3, 3);
-        assert!(&tree.entries == &v, 4);
-
-        let v = vector<Entry<u128>> [
-            new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, RB_BLACK),
-            new_entry_for_test<u128>(5, 5, NULL_INDEX, 4, 0, RB_BLACK),
-            new_entry_for_test<u128>(4, 4, 4, NULL_INDEX, NULL_INDEX, RB_BLACK),
-            new_entry_for_test<u128>(1, 1, 4, NULL_INDEX, 5, RB_BLACK),
-            new_entry_for_test<u128>(3, 3, 1, 3, 2, RB_RED),
-            new_entry_for_test<u128>(2, 2, 3, NULL_INDEX, NULL_INDEX, RB_RED), // 5
-        ];
-
-        insert(&mut tree, 2, 2);
-        assert!(&tree.entries == &v, 5);
-    }
-
-    #[test]
-    fun test_redblack_reverse() {
-        let tree = new<u128>();
-        insert(&mut tree, 6, 6);
-        insert(&mut tree, 7, 7);
-        insert(&mut tree, 8, 8);
-        let v = vector<Entry<u128>> [
-            new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, RB_RED),
-            new_entry_for_test<u128>(7, 7, NULL_INDEX, 0, 2, RB_BLACK),
-            new_entry_for_test<u128>(8, 8, 1, NULL_INDEX, NULL_INDEX, RB_RED),
-        ];
-
-        assert!(tree.root == 1, tree.root);
-        assert!(&tree.entries == &v, 2);
-
-        let v = vector<Entry<u128>> [
-            new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, RB_BLACK),
-            new_entry_for_test<u128>(7, 7, NULL_INDEX, 0, 2, RB_BLACK),
-            new_entry_for_test<u128>(8, 8, 1, NULL_INDEX, 3, RB_BLACK),
-            new_entry_for_test<u128>(11, 11, 2, NULL_INDEX, NULL_INDEX, RB_RED),
-        ];
-
-        insert(&mut tree, 11, 11);
-        assert!(&tree.entries == &v, 3);
-
-        let v = vector<Entry<u128>> [
-            new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, RB_BLACK),
-            new_entry_for_test<u128>(7, 7, NULL_INDEX, 0, 4, RB_BLACK),
-            new_entry_for_test<u128>(8, 8, 4, NULL_INDEX, NULL_INDEX, RB_RED),
-            new_entry_for_test<u128>(11, 11, 4, NULL_INDEX, NULL_INDEX, RB_RED),
-            new_entry_for_test<u128>(9, 9, 1, 2, 3, RB_BLACK),
-        ];
-        insert(&mut tree, 9, 9);
-        assert!(&tree.entries == &v, 4);
-
-        let v = vector<Entry<u128>> [
-            new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, RB_BLACK),
-            new_entry_for_test<u128>(7, 7, NULL_INDEX, 0, 4, RB_BLACK),
-            new_entry_for_test<u128>(8, 8, 4, NULL_INDEX, NULL_INDEX, RB_BLACK),
-            new_entry_for_test<u128>(11, 11, 4, 5, NULL_INDEX, RB_BLACK),
-            new_entry_for_test<u128>(9, 9, 1, 2, 3, RB_RED),
-            new_entry_for_test<u128>(10, 10, 3, NULL_INDEX, NULL_INDEX, RB_RED), // 5
-        ];
-
-        insert(&mut tree, 10, 10);
-        assert!(&tree.entries == &v, 5);
-    }
-
-    #[test]
-    fun test_min_iter_redblack() {
-        let tree = new<u128>();
-        let idx: u128 = 9;
-        while (idx > 0) {
-            let v = idx * 2;
-            insert(&mut tree, v, v);
-            idx = idx - 1;
-        };
-
-        insert(&mut tree, 0, 0);
-
-        while (idx < 10) {
-            let v = idx * 2 + 1;
-            insert(&mut tree, v, v);
-            idx = idx + 1;
-        };
-
-        let idx = 0;
-        while (idx < 20) {
-            let v = find(&tree, idx);
-            idx = idx + 1;
-            assert!(v != NULL_INDEX, (idx as u64));
-        };
-
-        let idx: u128 = 0;
-        let iter = get_min_index(&tree);
-        while (idx < 20) {
-            let (_, v) = borrow_at_index(&tree, iter);
-            let v = *v;
-            assert!(v == idx, (v as u64));
-            idx = idx + 1;
-            iter = next_in_order(&tree, iter);
-        };
-
-        assert!(iter == NULL_INDEX, iter);
-        std::debug::print(&tree.entries);
-        let min_index = get_min_index(&tree);
-        remove(&mut tree, min_index);
-        std::debug::print(&tree.entries);
-        let i = find(&tree, 4);
-        remove(&mut tree, i);
-        std::debug::print(&tree.entries);
-        remove(&mut tree, 12);
-        std::debug::print(&tree.entries);
-        remove(&mut tree, 13);
-        while(!empty(&tree)) {
-            std::debug::print(&tree.entries);
-
-            let min_index = get_min_index(&tree);
-            let (key, value) = borrow_at_index(&tree, min_index);
-            let value = *value;
-            assert!(key == value, (key as u64));
-            remove(&mut tree, min_index);
-        };
-
-        std::debug::print(&tree.entries);
-
-        destroy_empty(tree);
-    }
-
-    #[test]
-    fun test_max_iter_redblack() {
-        let tree = new<u128>();
-        let idx: u128 = 9;
-        while (idx > 0) {
-            let v = idx * 2;
-            insert(&mut tree, v, v);
-            idx = idx - 1;
-        };
-
-        insert(&mut tree, 0, 0);
-
-        while (idx < 10) {
-            let v = idx * 2 + 1;
-            insert(&mut tree, v, v);
-            idx = idx + 1;
-        };
-
-        let idx = 0;
-        while (idx < 20) {
-            let v = find(&tree, idx);
-            idx = idx + 1;
-            assert!(v != NULL_INDEX, (idx as u64));
-        };
-
-        let idx: u128 = 20;
-        let iter = get_max_index(&tree);
-        while (idx > 0) {
-            let (_, v) = borrow_at_index(&tree, iter);
-            let v = *v;
-            assert!(v == idx - 1, (v as u64));
-            idx = idx - 1;
-            iter = next_in_reverse_order(&tree, iter);
-        };
-
-        assert!(iter == NULL_INDEX, iter);
-        std::debug::print(&tree.entries);
-        let max_index = get_max_index(&tree);
-        remove(&mut tree, max_index);
-        std::debug::print(&tree.entries);
-        let i = find(&tree, 4);
-        remove(&mut tree, i);
-        std::debug::print(&tree.entries);
-        remove(&mut tree, 12);
-        std::debug::print(&tree.entries);
-        remove(&mut tree, 13);
-        while(!empty(&tree)) {
-            std::debug::print(&tree.entries);
-
-            let max_index = get_max_index(&tree);
-            let (key, value) = borrow_at_index(&tree, max_index);
-            let value = *value;
-            assert!(key == value, (key as u64));
-            remove(&mut tree, max_index);
-        };
-
-        std::debug::print(&tree.entries);
-
-        destroy_empty(tree);
     }
 }

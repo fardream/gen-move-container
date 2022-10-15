@@ -2,8 +2,23 @@
 // Caution when editing manually.
 // critbit tree based on http://github.com/agl/critbit
 module {{.Address}}::{{.ModuleName}} {
-    use std::vector;
-
+{{if .UseAptosTable}}    use aptos_std::table_with_length::{Self as table, TableWithLength as Table};
+    fun swap<V>(table: &mut Table<u64, V>, i: u64, j: u64) {
+        let i_item = table::remove(table, i);
+        let j_item = table::remove(table, j);
+        table::add(table, j, i_item);
+        table::add(table, i, j_item);
+    }
+    fun push_back<V>(t: &mut Table<u64, V>, v: V) {
+        let i = table::length(t);
+        table::add(t, i, v)
+    }
+    fun pop_back<V>(t: &mut Table<u64, V>): V {
+        let i = table::length(t) - 1;
+        table::remove(t, i)
+    }
+{{else}}    use std::vector::{Self, swap, push_back, pop_back};
+{{end}}
     const E_INVALID_ARGUMENT: u64 = 1;
     const E_EMPTY_TREE: u64 = 2;
     const E_TREE_NOT_EMPTY: u64 = 3;
@@ -54,21 +69,21 @@ module {{.Address}}::{{.ModuleName}} {
         right_child: u64,
     }
 
-    struct CritbitTree<V> has store, copy, drop {
+    struct CritbitTree<V> has {{if .UseAptosTable}}store{{else}}store, copy, drop{{end}} {
         root: u64,
-        tree: vector<TreeNode>,
+        tree: {{if .UseAptosTable}}Table<u64, TreeNode>{{else}}vector<TreeNode>{{end}},
         min_index: u64,
         max_index: u64,
-        entries: vector<DataNode<V>>,
+        entries: {{if .UseAptosTable}}Table<u64, DataNode<V>>{{else}}vector<DataNode<V>>{{end}},
     }
 
-    public fun new<V>(): CritbitTree<V> {
+    public fun new<V{{if .UseAptosTable}}: store{{end}}>(): CritbitTree<V> {
         CritbitTree<V> {
             root: NULL_INDEX,
-            tree: vector::empty(),
+            tree: {{if .UseAptosTable}}table::new(){{else}}vector::empty(){{end}},
             min_index: NULL_INDEX,
             max_index: NULL_INDEX,
-            entries: vector::empty(),
+            entries: {{if .UseAptosTable}}table::new(){{else}}vector::empty(){{end}},
         }
     }
 
@@ -80,7 +95,7 @@ module {{.Address}}::{{.ModuleName}} {
     public fun find<V>(tree: &CritbitTree<V>, key: u128): u64 {
         let closest_key = find_closest_key(tree, key, tree.root);
 
-        if (closest_key != NULL_INDEX && vector::borrow(&tree.entries, closest_key).key == key) {
+        if (closest_key != NULL_INDEX && {{.UnderlyingModule}}::borrow(&tree.entries, closest_key).key == key) {
             closest_key
         } else {
             NULL_INDEX
@@ -89,24 +104,24 @@ module {{.Address}}::{{.ModuleName}} {
 
     /// borrow returns a reference to the element with its key at the given index
     public fun borrow_at_index<V>(tree: &CritbitTree<V>, index: u64): (u128, &V) {
-        let entry = vector::borrow(&tree.entries, index);
+        let entry = {{.UnderlyingModule}}::borrow(&tree.entries, index);
         (entry.key, &entry.value)
     }
 
     /// borrow_mut returns a mutable reference to the element with its key at the given index
     public fun borrow_at_index_mut<V>(tree: &mut CritbitTree<V>, index: u64): (u128, &mut V) {
-        let entry = vector::borrow_mut(&mut tree.entries, index);
+        let entry = {{.UnderlyingModule}}::borrow_mut(&mut tree.entries, index);
         (entry.key, &mut entry.value)
     }
 
     /// size returns the number of elements in the CritbitTree.
     public fun size<V>(tree: &CritbitTree<V>): u64 {
-        vector::length(&tree.entries)
+        {{.UnderlyingModule}}::length(&tree.entries)
     }
 
     /// empty returns true if the CritbitTree is empty.
     public fun empty<V>(tree: &CritbitTree<V>): bool {
-        vector::length(&tree.entries) == 0
+        {{.UnderlyingModule}}::length(&tree.entries) == 0
     }
 
     /// get index of the min of the tree.
@@ -123,7 +138,7 @@ module {{.Address}}::{{.ModuleName}} {
             NULL_INDEX
         } else {
             while (!is_data_index(current)) {
-                current = vector::borrow(&tree.tree, current).left_child;
+                current = {{.UnderlyingModule}}::borrow(&tree.tree, current).left_child;
             };
             convert_data_index(current)
         }
@@ -143,7 +158,7 @@ module {{.Address}}::{{.ModuleName}} {
             NULL_INDEX
         } else {
             while (!is_data_index(current)) {
-                current = vector::borrow(&tree.tree, current).right_child;
+                current = {{.UnderlyingModule}}::borrow(&tree.tree, current).right_child;
             };
             convert_data_index(current)
         }
@@ -152,19 +167,19 @@ module {{.Address}}::{{.ModuleName}} {
     /// find next value in order (the key is increasing)
     public fun next_in_order<V>(tree: &CritbitTree<V>, index: u64): u64 {
         let current = convert_data_index(index);
-        let parent = vector::borrow(&tree.entries, index).parent;
+        let parent = {{.UnderlyingModule}}::borrow(&tree.entries, index).parent;
         if (parent == NULL_INDEX) {
             NULL_INDEX
         } else {
             while(parent != NULL_INDEX && is_right_child(tree, current, parent)) {
                 current = parent;
-                parent = vector::borrow(&tree.tree, current).parent;
+                parent = {{.UnderlyingModule}}::borrow(&tree.tree, current).parent;
             };
 
             if (parent == NULL_INDEX) {
                 NULL_INDEX
             } else {
-                get_min_index_from(tree, vector::borrow(&tree.tree, parent).right_child)
+                get_min_index_from(tree, {{.UnderlyingModule}}::borrow(&tree.tree, parent).right_child)
             }
         }
     }
@@ -172,19 +187,19 @@ module {{.Address}}::{{.ModuleName}} {
     /// find next value in reverse order (the key is decreasing)
     public fun next_in_reverse_order<V>(tree: &CritbitTree<V>, index: u64): u64 {
         let current = convert_data_index(index);
-        let parent = vector::borrow(&tree.entries, index).parent;
+        let parent = {{.UnderlyingModule}}::borrow(&tree.entries, index).parent;
         if (parent == NULL_INDEX) {
             NULL_INDEX
         } else {
             while (parent != NULL_INDEX && is_left_child(tree, current, parent)) {
                 current = parent;
-                parent = vector::borrow(&tree.tree, current).parent;
+                parent = {{.UnderlyingModule}}::borrow(&tree.tree, current).parent;
             };
 
             if (parent == NULL_INDEX) {
                 NULL_INDEX
             } else {
-                get_max_index_from(tree, vector::borrow(&tree.tree, parent).left_child)
+                get_max_index_from(tree, {{.UnderlyingModule}}::borrow(&tree.tree, parent).left_child)
             }
         }
     }
@@ -202,7 +217,7 @@ module {{.Address}}::{{.ModuleName}} {
                 return convert_data_index(current)
             };
 
-            let node = vector::borrow(&tree.tree, current);
+            let node = {{.UnderlyingModule}}::borrow(&tree.tree, current);
 
             let m = node.mask & key;
 
@@ -231,8 +246,8 @@ module {{.Address}}::{{.ModuleName}} {
             parent: NULL_INDEX,
         };
 
-        let data_index = vector::length(&tree.entries);
-        vector::push_back(&mut tree.entries, data_node);
+        let data_index = {{.UnderlyingModule}}::length(&tree.entries);
+        push_back(&mut tree.entries, data_node);
 
         let root = tree.root;
         let closest_index = find_closest_key(tree, key, root);
@@ -251,7 +266,7 @@ module {{.Address}}::{{.ModuleName}} {
         // Use closest_key to test for the prefix.
         // at each node, we check if the key (mask for internal node, key for data node)'s critbit is lower than the critbit formed from closest_key and key.
         // - If the critbit of the closest_key/key is higher, we insert a parent node, and append the new node as child, and attach the old key.
-        let closest_key = vector::borrow(&tree.entries, closest_index).key;
+        let closest_key = {{.UnderlyingModule}}::borrow(&tree.entries, closest_index).key;
 
         assert!(closest_key != key, E_KEY_ALREADY_EXIST);
 
@@ -266,7 +281,7 @@ module {{.Address}}::{{.ModuleName}} {
                 break
             };
 
-            let node = vector::borrow(&tree.tree, current);
+            let node = {{.UnderlyingModule}}::borrow(&tree.tree, current);
 
             if (mask_new > node.mask) {
                 break
@@ -287,8 +302,8 @@ module {{.Address}}::{{.ModuleName}} {
             right_child: NULL_INDEX,
         };
 
-        let new_parent_index = vector::length(&tree.tree);
-        vector::push_back(&mut tree.tree, parent_node);
+        let new_parent_index = {{.UnderlyingModule}}::length(&tree.tree);
+        push_back(&mut tree.tree, parent_node);
         if (insertion_parent != NULL_INDEX) {
             replace_child(tree, insertion_parent, current, new_parent_index);
         } else {
@@ -306,18 +321,18 @@ module {{.Address}}::{{.ModuleName}} {
         };
 
         let min_index = tree.min_index;
-        if (vector::borrow(&tree.entries, min_index).key > key) {
+        if ({{.UnderlyingModule}}::borrow(&tree.entries, min_index).key > key) {
             tree.min_index = data_index;
         };
         let max_index = tree.max_index;
-        if (vector::borrow(&tree.entries, max_index).key < key) {
+        if ({{.UnderlyingModule}}::borrow(&tree.entries, max_index).key < key) {
             tree.max_index = data_index;
         };
     }
 
     /// remove deletes and returns the element from the CritbitTree.
     public fun remove<V>(tree: &mut CritbitTree<V>, index: u64): (u128, V) {
-        let old_length = vector::length(&tree.entries);
+        let old_length = {{.UnderlyingModule}}::length(&tree.entries);
         assert!(old_length > index, E_INDEX_OUT_OF_RANGE);
 
         if (tree.min_index == index) {
@@ -329,7 +344,7 @@ module {{.Address}}::{{.ModuleName}} {
 
         let data_index_converted = convert_data_index(index);
 
-        let original_parent = vector::borrow(&tree.entries, index).parent;
+        let original_parent = {{.UnderlyingModule}}::borrow(&tree.entries, index).parent;
         let is_left_child = if (original_parent != NULL_INDEX) {
             is_left_child(tree, data_index_converted, original_parent)
         } else {
@@ -338,9 +353,9 @@ module {{.Address}}::{{.ModuleName}} {
 
         let end_index = old_length - 1;
         if (end_index != index) {
-            let end_parent = vector::borrow(&tree.entries, end_index).parent;
+            let end_parent = {{.UnderlyingModule}}::borrow(&tree.entries, end_index).parent;
             let is_end_index_left = is_left_child(tree, convert_data_index(end_index), end_parent);
-            vector::swap(&mut tree.entries, index, end_index);
+            swap(&mut tree.entries, index, end_index);
             if (is_end_index_left) {
                 replace_left_child(tree, end_parent, data_index_converted);
             } else {
@@ -359,18 +374,18 @@ module {{.Address}}::{{.ModuleName}} {
             }
         };
 
-        let DataNode<V> {key, value, parent: _} = vector::pop_back(&mut tree.entries);
+        let DataNode<V> {key, value, parent: _} = pop_back(&mut tree.entries);
 
-        if (vector::length(&tree.entries) == 0) {
+        if ({{.UnderlyingModule}}::length(&tree.entries) == 0) {
             assert!(original_parent == NULL_INDEX, E_TREE_NOT_EMPTY);
-            assert!(vector::length(&tree.tree) == 0, E_TREE_NOT_EMPTY);
+            assert!({{.UnderlyingModule}}::length(&tree.tree) == 0, E_TREE_NOT_EMPTY);
             tree.root = NULL_INDEX;
             tree.min_index = NULL_INDEX;
             tree.max_index = NULL_INDEX;
             (key, value)
         } else {
             assert!(original_parent != NULL_INDEX, E_DATA_NODE_LACK_PARENT);
-            let original_parent_node = vector::borrow(&tree.tree, original_parent);
+            let original_parent_node = {{.UnderlyingModule}}::borrow(&tree.tree, original_parent);
             let other_child = if (is_left_child) {
                 original_parent_node.right_child
             } else {
@@ -384,12 +399,12 @@ module {{.Address}}::{{.ModuleName}} {
                 replace_child(tree, grand_parent, original_parent, other_child);
             };
 
-            let tree_size = vector::length(&tree.tree);
+            let tree_size = {{.UnderlyingModule}}::length(&tree.tree);
             assert!(tree_size > original_parent, E_INDEX_OUT_OF_RANGE);
             let tree_end_index = tree_size - 1;
             if (tree_end_index != original_parent) {
-                vector::swap(&mut tree.tree, tree_end_index, original_parent);
-                let switched_node = vector::borrow(&tree.tree, original_parent);
+                swap(&mut tree.tree, tree_end_index, original_parent);
+                let switched_node = {{.UnderlyingModule}}::borrow(&tree.tree, original_parent);
                 let left_child = switched_node.left_child;
                 let right_child = switched_node.right_child;
                 let new_parent = switched_node.parent;
@@ -402,14 +417,14 @@ module {{.Address}}::{{.ModuleName}} {
                     tree.root = original_parent;
                 };
             };
-            vector::pop_back(&mut tree.tree);
+            pop_back(&mut tree.tree);
             (key, value)
         }
     }
 
     /// destroys the tree if it's empty.
     public fun destroy_empty<V>(tree: CritbitTree<V>) {
-        assert!(vector::length(&tree.entries) == 0, E_CANNOT_DESTRORY_NON_EMPTY);
+        assert!({{.UnderlyingModule}}::length(&tree.entries) == 0, E_CANNOT_DESTRORY_NON_EMPTY);
 
         let CritbitTree<V> {
             entries,
@@ -419,16 +434,16 @@ module {{.Address}}::{{.ModuleName}} {
             max_index: _,
         } = tree;
 
-        vector::destroy_empty(entries);
-        vector::destroy_empty(tree);
+        {{.UnderlyingModule}}::destroy_empty(entries);
+        {{.UnderlyingModule}}::destroy_empty(tree);
     }
 
     fun is_right_child<V>(tree: &CritbitTree<V>, index: u64, parent_index: u64): bool {
-        vector::borrow(&tree.tree, parent_index).right_child == index
+        {{.UnderlyingModule}}::borrow(&tree.tree, parent_index).right_child == index
     }
 
     fun is_left_child<V>(tree: &CritbitTree<V>, index: u64, parent_index: u64): bool {
-        vector::borrow(&tree.tree, parent_index).left_child == index
+        {{.UnderlyingModule}}::borrow(&tree.tree, parent_index).left_child == index
     }
 
     /// Replace the child of parent if parent_index is not NULL_INDEX.
@@ -446,12 +461,12 @@ module {{.Address}}::{{.ModuleName}} {
         if (parent_index == NULL_INDEX) {
             return
         };
-        vector::borrow_mut(&mut tree.tree, parent_index).left_child = new_child;
+        {{.UnderlyingModule}}::borrow_mut(&mut tree.tree, parent_index).left_child = new_child;
         if (new_child != NULL_INDEX) {
             if (is_data_index(new_child)) {
-                vector::borrow_mut(&mut tree.entries, convert_data_index(new_child)).parent = parent_index;
+                {{.UnderlyingModule}}::borrow_mut(&mut tree.entries, convert_data_index(new_child)).parent = parent_index;
             } else {
-                vector::borrow_mut(&mut tree.tree, new_child).parent = parent_index;
+                {{.UnderlyingModule}}::borrow_mut(&mut tree.tree, new_child).parent = parent_index;
             };
         };
     }
@@ -460,21 +475,21 @@ module {{.Address}}::{{.ModuleName}} {
         if (parent_index == NULL_INDEX) {
             return
         };
-        vector::borrow_mut(&mut tree.tree, parent_index).right_child = new_child;
+        {{.UnderlyingModule}}::borrow_mut(&mut tree.tree, parent_index).right_child = new_child;
         if (new_child != NULL_INDEX) {
             if (is_data_index(new_child)) {
-                vector::borrow_mut(&mut tree.entries, convert_data_index(new_child)).parent = parent_index;
+                {{.UnderlyingModule}}::borrow_mut(&mut tree.entries, convert_data_index(new_child)).parent = parent_index;
             } else {
-                vector::borrow_mut(&mut tree.tree, new_child).parent = parent_index;
+                {{.UnderlyingModule}}::borrow_mut(&mut tree.tree, new_child).parent = parent_index;
             };
         };
     }
 
     fun replace_parent<V>(tree: &mut CritbitTree<V>, child: u64, new_parent: u64) {
         if (is_data_index(child)) {
-            vector::borrow_mut(&mut tree.entries, convert_data_index(child)).parent = new_parent;
+            {{.UnderlyingModule}}::borrow_mut(&mut tree.entries, convert_data_index(child)).parent = new_parent;
         } else {
-            vector::borrow_mut(&mut tree.tree, child).parent = new_parent;
+            {{.UnderlyingModule}}::borrow_mut(&mut tree.tree, child).parent = new_parent;
         }
     }
 
@@ -524,7 +539,7 @@ module {{.Address}}::{{.ModuleName}} {
             n
         }
     }
-
+{{if .DoTest}}
     #[test_only]
     fun new_entry_for_test<V>(key: u128, value: V, parent: u64): DataNode<V> {
         DataNode<V> {
@@ -826,4 +841,4 @@ module {{.Address}}::{{.ModuleName}} {
         };
         assert!(&bst == &v0_bst, 2);
     }
-}
+{{end}}}

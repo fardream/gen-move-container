@@ -1,0 +1,17 @@
+[package]
+name = 'container'
+version = '1.0.0'
+license = "MIT"
+authors = ["Chao Xu <fardream@users.noreply.github.com>"]
+
+[addresses]
+container = "_"
+AptosFramework = "0x1"
+
+[dev-addresses]
+container = "0x1234"
+
+[dependencies.AptosFramework]
+git = 'https://github.com/aptos-labs/aptos-core.git'
+rev = 'aptos-cli-v0.3.9'
+subdir = 'aptos-move/framework/aptos-framework'
