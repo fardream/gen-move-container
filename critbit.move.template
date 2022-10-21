@@ -26,12 +26,14 @@ module {{.Address}}::{{.ModuleName}} {
     const E_INDEX_OUT_OF_RANGE: u64 = 5;
     const E_DATA_NODE_LACK_PARENT: u64 = 6;
     const E_CANNOT_DESTRORY_NON_EMPTY: u64 = 7;
-
+    const E_EXCEED_CAPACITY: u64 = 8;
 
     // NULL_INDEX is 1 << 63;
-    const NULL_INDEX: u64 = 1 << 63;
+    const NULL_INDEX: u64 = 1 << 63;  // 9223372036854775808
     // MAX_U64
     const MAX_U64: u64 = 18446744073709551615;
+    // Max capacity of the critbit. data index must be less than MAX_CAPACITY
+    const MAX_CAPACITY: u64 = 9223372036854775807; // NULL_INDEX - 1
 
     // check if the index is NULL_INDEX
     public fun is_null_index(index: u64): bool {
@@ -247,6 +249,11 @@ module {{.Address}}::{{.ModuleName}} {
         };
 
         let data_index = {{.UnderlyingModule}}::length(&tree.entries);
+        assert!(
+            data_index < MAX_CAPACITY,
+            E_EXCEED_CAPACITY,
+        );
+
         push_back(&mut tree.entries, data_node);
 
         let root = tree.root;
