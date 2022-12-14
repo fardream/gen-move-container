@@ -1,6 +1,6 @@
 // Code generated from github.com/fardream/gen-move-container
 // Caution when editing manually.
-// critbit tree based on http://github.com/agl/critbit
+// Double Linked List
 module container::linked_list {
     use std::vector::{Self, swap, push_back, pop_back};
 
@@ -94,7 +94,7 @@ module container::linked_list {
         insert_after(list, index, value)
     }
 
-    /// insert after index
+    /// insert after index. If the list is empty, the index can be NULL_INDEX.
     public fun insert_after<V>(list: &mut LinkedList<V>, index: u64, value: V) {
         let new_index = vector::length(&list.entries);
         assert!(
@@ -128,9 +128,11 @@ module container::linked_list {
         } else {
             list.tail = new_index;
         };
+
         push_back(&mut list.entries, node);
     }
 
+    /// isnert before index. If the list is empty, the index can be NULL_INDEX.
     public fun insert_before<V>(list: &mut LinkedList<V>, index: u64, value: V) {
         let new_index = vector::length(&list.entries);
         assert!(
@@ -168,6 +170,7 @@ module container::linked_list {
     }
 
     /// remove deletes and returns the element from the LinkedList.
+    /// element is first swapped to the end of the container, then popped out.
     public fun remove<V>(list: &mut LinkedList<V>, index: u64): V {
         let to_remove = vector::borrow(&list.entries, index);
         let prev = to_remove.prev;
@@ -182,6 +185,8 @@ module container::linked_list {
         } else {
             list.tail = next;
         };
+
+        // swap the element to be removed with the last element
         if (index + 1 != vector::length(&list.entries)) {
             let tail_index = vector::length(&list.entries) - 1;
             swap(&mut list.entries, index, tail_index);
@@ -200,6 +205,7 @@ module container::linked_list {
             };
         };
 
+        // pop
         let Node {
             value,
             next: _,
@@ -209,7 +215,7 @@ module container::linked_list {
         value
     }
 
-    /// destroys the tree if it's empty.
+    /// destroys the linked list if it's empty.
     public fun destroy_empty<V>(tree: LinkedList<V>) {
         assert!(vector::length(&tree.entries) == 0, E_CANNOT_DESTRORY_NON_EMPTY);
 
@@ -221,5 +227,135 @@ module container::linked_list {
 
         vector::destroy_empty(entries);
     }
-    // this is test but there is no test yet :)
+
+    #[test_only]
+    public fun new_node_for_test(value: u128, prev: u64, next: u64): Node<u128> {
+        Node { value, prev, next }
+    }
+
+    #[test]
+    public fun test_linked_list() {
+        let l = new<u128>();
+        assert!(size(&l) == 0, size(&l));
+        insert(&mut l, 5);
+        assert!(size(&l) == 1, size(&l));
+        let expected = LinkedList<u128> {
+            head: 0,
+            tail: 0,
+            entries: vector<Node<u128>> [
+                new_node_for_test(5, NULL_INDEX, NULL_INDEX),
+            ],
+        };
+        assert!(l == expected, 1);
+        insert(&mut l, 7);
+        let expected = LinkedList<u128> {
+            head: 0,
+            tail: 1,
+            entries: vector<Node<u128>> [
+                new_node_for_test(5, NULL_INDEX, 1),
+                new_node_for_test(7, 0, NULL_INDEX),
+            ],
+        };
+        assert!(l == expected, 1);
+
+        insert(&mut l, 9);
+        let expected = LinkedList<u128> {
+            head: 0,
+            tail: 2,
+            entries: vector<Node<u128>> [
+                new_node_for_test(5, NULL_INDEX, 1),
+                new_node_for_test(7, 0, 2),
+                new_node_for_test(9, 1, NULL_INDEX),
+            ],
+        };
+        assert!(l == expected, 1);
+
+        insert_after(&mut l, 1, 11);
+        let expected = LinkedList<u128> {
+            head: 0,
+            tail: 2,
+            entries: vector<Node<u128>> [
+                new_node_for_test(5, NULL_INDEX, 1),
+                new_node_for_test(7, 0, 3),
+                new_node_for_test(9, 3, NULL_INDEX),
+                new_node_for_test(11, 1, 2),
+            ],
+        };
+        assert!(l == expected, 1);
+
+        insert_before(&mut l, 0, 13);
+        let expected = LinkedList<u128> {
+            head: 4,
+            tail: 2,
+            entries: vector<Node<u128>> [
+                new_node_for_test(5, 4, 1),
+                new_node_for_test(7, 0, 3),
+                new_node_for_test(9, 3, NULL_INDEX),
+                new_node_for_test(11, 1, 2),
+                new_node_for_test(13, NULL_INDEX, 0),
+            ],
+        };
+        assert!(l == expected, 1);
+
+        remove(&mut l, 1);
+        std::debug::print(&l);
+        let expected = LinkedList<u128> {
+            head: 1,
+            tail: 2,
+            entries: vector<Node<u128>> [
+                new_node_for_test(5, 1, 3),
+                // new_node_for_test(7, 0, 3),
+                new_node_for_test(13, NULL_INDEX, 0),
+                new_node_for_test(9, 3, NULL_INDEX),
+                new_node_for_test(11, 0, 2),
+            ],
+        };
+        assert!(l == expected, 1);
+
+        remove(&mut l, 3);
+        let expected = LinkedList<u128> {
+            head: 1,
+            tail: 2,
+            entries: vector<Node<u128>> [
+                new_node_for_test(5, 1, 2),
+                new_node_for_test(13, NULL_INDEX, 0),
+                new_node_for_test(9, 0, NULL_INDEX),
+                // new_node_for_test(11, 0, 2),
+            ],
+        };
+        assert!(l == expected, 1);
+
+        remove(&mut l, 0);
+        let expected = LinkedList<u128> {
+            head: 1,
+            tail: 0,
+            entries: vector<Node<u128>> [
+                // new_node_for_test(5, 1, 2),
+                new_node_for_test(9, 1, NULL_INDEX),
+                new_node_for_test(13, NULL_INDEX, 0),
+            ],
+        };
+        assert!(l == expected, 1);
+
+        remove(&mut l, 0);
+        let expected = LinkedList<u128> {
+            head: 0,
+            tail: 0,
+            entries: vector<Node<u128>> [
+                // new_node_for_test(9, 1, NULL_INDEX),
+                new_node_for_test(13, NULL_INDEX, NULL_INDEX),
+            ],
+        };
+        assert!(l == expected, 1);
+
+        remove(&mut l, 0);
+        let expected = LinkedList<u128> {
+            head: NULL_INDEX,
+            tail: NULL_INDEX,
+            entries: vector<Node<u128>> [
+                // new_node_for_test(13, NULL_INDEX, NULL_INDEX),
+            ],
+        };
+        assert!(l == expected, 1);
+    }
 }
