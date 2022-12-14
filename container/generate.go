@@ -6,3 +6,4 @@ package container
 //go:generate go run .. avl
 //go:generate go run .. bst
 //go:generate go run .. critbit
+//go:generate go run .. linked-list

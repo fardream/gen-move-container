@@ -6,3 +6,4 @@ package container_aptos_table
 //go:generate go run .. avl --use-aptos-table
 //go:generate go run .. bst --use-aptos-table
 //go:generate go run .. critbit --use-aptos-table
+//go:generate go run .. linked-list --use-aptos-table

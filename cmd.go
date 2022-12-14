@@ -14,6 +14,7 @@ func main() {
 		GetAvlCmd(),
 		GetVanillaBinarySearchTreeCmd(),
 		GetCritbitTreeCmd(),
+		GetLinkedListCmd(),
 	)
 
 	cmd.Execute()
