@@ -41,7 +41,7 @@ Vanilla binary search tree, AVL tree, and red black tree based on [GNU libavl](h
 
 The versions implemented here are libavl's version with parent pointers. The pointers are replaced by indices that index into a vector.
 
-The key is right now always `u128` or 128 bit unsigned integer, but supporting other types are trivial.
+The key must be a native integer (`u8`, `u16`, `u32`, `u64`, `u128`, or `u256`), and `u128` is default.
 
 ## Critbit Tree
 

@@ -15,6 +15,9 @@ base on GNU libavl https://adtinfo.org/
 
 based on http://github.com/agl/critbit
 - critbit tree
+
+also provided:
+- double linked list
 `
 
 type Shared struct {

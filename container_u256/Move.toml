@@ -1,0 +1,18 @@
+[package]
+name = 'container'
+version = '1.0.0'
+license = "MIT"
+authors = ["Chao Xu <fardream@users.noreply.github.com>"]
+
+[dependencies]
+
+[dev-dependencies]
+MoveStdlib = { git = "git@github.com:move-language/move.git", rev = "main", subdir = "language/move-stdlib" }
+MoveNursery = { git = "git@github.com:move-language/move.git", rev = "main", subdir = "language/move-stdlib/nursery" }
+
+[addresses]
+container = "_"
+
+[dev-addresses]
+std = "0x1"
+container = "0x99"

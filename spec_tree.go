@@ -26,6 +26,7 @@ type SpecTreeData struct {
 	NoAssert      bool
 	KeyCount      int
 	ModulePostfix string
+	KeyIntWidth   int
 
 	Keys []Key
 }
@@ -36,6 +37,7 @@ func (data *SpecTreeData) SetSpecTreeData(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&data.ModulePostfix, "module-postfilx", data.ModulePostfix, "post fix for module name")
 	cmd.Flags().IntVar(&data.KeyCount, "key-count", data.KeyCount, "number of keys for the tree")
 	cmd.Flags().BoolVar(&data.NoAssert, "no-ssert", data.NoAssert, "turn off assert")
+	cmd.Flags().IntVar(&data.KeyIntWidth, "key-width", data.KeyIntWidth, "int width for keys")
 
 	cmd.Run = data.Run
 }
@@ -57,6 +59,10 @@ func (data *SpecTreeData) TreeType() string {
 	default:
 		return "BinarySearchTree"
 	}
+}
+
+func (data *SpecTreeData) KeyType() string {
+	return fmt.Sprintf("u%d", data.KeyIntWidth)
 }
 
 func (data *SpecTreeData) Run(cmd *cobra.Command, _ []string) {
@@ -113,10 +119,11 @@ func GetRedBlackCmd() *cobra.Command {
 `,
 	}
 	shared := SpecTreeData{
-		Shared:   NewShared("red_black", "red-black"),
-		IsRb:     true,
-		IsAvl:    false,
-		KeyCount: 1,
+		Shared:      NewShared("red_black", "red-black"),
+		IsRb:        true,
+		IsAvl:       false,
+		KeyCount:    1,
+		KeyIntWidth: 128,
 	}
 
 	shared.SetSpecTreeData(cmd)
@@ -132,10 +139,11 @@ func GetAvlCmd() *cobra.Command {
 `,
 	}
 	shared := SpecTreeData{
-		Shared:   NewShared("avl", "avl"),
-		IsRb:     false,
-		IsAvl:    true,
-		KeyCount: 1,
+		Shared:      NewShared("avl", "avl"),
+		IsRb:        false,
+		IsAvl:       true,
+		KeyCount:    1,
+		KeyIntWidth: 128,
 	}
 
 	shared.SetSpecTreeData(cmd)
@@ -151,10 +159,11 @@ func GetVanillaBinarySearchTreeCmd() *cobra.Command {
 `,
 	}
 	shared := SpecTreeData{
-		Shared:   NewShared("vanilla_binary_search_tree", "bst"),
-		IsRb:     false,
-		IsAvl:    false,
-		KeyCount: 1,
+		Shared:      NewShared("vanilla_binary_search_tree", "bst"),
+		IsRb:        false,
+		IsAvl:       false,
+		KeyCount:    1,
+		KeyIntWidth: 128,
 	}
 
 	shared.SetSpecTreeData(cmd)
