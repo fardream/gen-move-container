@@ -1,7 +1,7 @@
 // Code generated from github.com/fardream/gen-move-container
 // Caution when editing manually.
 // Tree based on GNU libavl https://adtinfo.org/
-module {{.Address}}::{{.ModuleName}} {
+{{$keytype := .KeyType}}module {{.Address}}::{{.ModuleName}} {
 {{if .UseAptosTable}}    use aptos_std::table_with_length::{Self as table, TableWithLength as Table};
     fun swap<V>(table: &mut Table<u64, V>, i: u64, j: u64) {
         let i_item = table::remove(table, i);
@@ -73,7 +73,7 @@ module {{.Address}}::{{.ModuleName}} {
     /// Entry is the internal {{.TreeType}} element.
     struct Entry<V> has store, copy, drop {
 {{range .Keys}}        // key
-        {{.KeyName}}: u128,
+        {{.KeyName}}: {{$keytype}},
 {{end}}        // value
         value: V,
         // parent
@@ -86,7 +86,7 @@ module {{.Address}}::{{.ModuleName}} {
         metadata: u8,
 {{end}}    }
 
-    fun new_entry<V>({{range .Keys}}{{.KeyName}}: u128, {{end}}value: V): Entry<V> {
+    fun new_entry<V>({{range .Keys}}{{.KeyName}}: {{$keytype}}, {{end}}value: V): Entry<V> {
         Entry<V> {
 {{range .Keys}}            {{.KeyName}},
 {{end}}            value,
@@ -98,7 +98,7 @@ module {{.Address}}::{{.ModuleName}} {
     }
 
     #[test_only]
-    fun new_entry_for_test<V>({{range .Keys}}{{.KeyName}}: u128, {{end}}value: V, parent: u64, left_child: u64, right_child: u64{{if .NeedMetadata}}, metadata: u8{{end}}): Entry<V> {
+    fun new_entry_for_test<V>({{range .Keys}}{{.KeyName}}: {{$keytype}}, {{end}}value: V, parent: u64, left_child: u64, right_child: u64{{if .NeedMetadata}}, metadata: u8{{end}}): Entry<V> {
         Entry {
 {{range .Keys}}            {{.KeyName}},
 {{end}}            value,
@@ -132,7 +132,7 @@ module {{.Address}}::{{.ModuleName}} {
     ///////////////
 
     /// find returns the element index in the {{.TreeType}}, or none if not found.
-    public fun find<V>(tree: &{{.TreeType}}<V>, {{range .Keys}}{{.KeyName}}: u128{{if .More}}, {{end}}{{end}}): u64 {
+    public fun find<V>(tree: &{{.TreeType}}<V>, {{range .Keys}}{{.KeyName}}: {{$keytype}}{{if .More}}, {{end}}{{end}}): u64 {
         let current = tree.root;
 
         while(current != NULL_INDEX) {
@@ -152,13 +152,13 @@ module {{.Address}}::{{.ModuleName}} {
     }
 
     /// borrow returns a reference to the element with its key at the given index
-    public fun borrow_at_index<V>(tree: &{{.TreeType}}<V>, index: u64): ({{range .Keys}}u128, {{end}}&V) {
+    public fun borrow_at_index<V>(tree: &{{.TreeType}}<V>, index: u64): ({{range .Keys}}{{$keytype}}, {{end}}&V) {
         let entry = {{.UnderlyingModule}}::borrow(&tree.entries, index);
         ({{range .Keys}}entry.{{.KeyName}}, {{end}}&entry.value)
     }
 
     /// borrow_mut returns a mutable reference to the element with its key at the given index
-    public fun borrow_at_index_mut<V>(tree: &mut {{.TreeType}}<V>, index: u64): ({{range .Keys}}u128, {{end}}&mut V) {
+    public fun borrow_at_index_mut<V>(tree: &mut {{.TreeType}}<V>, index: u64): ({{range .Keys}}{{$keytype}}, {{end}}&mut V) {
         let entry = {{.UnderlyingModule}}::borrow_mut(&mut tree.entries, index);
         ({{range .Keys}}entry.{{.KeyName}}, {{end}}&mut entry.value)
     }
@@ -286,7 +286,7 @@ module {{.Address}}::{{.ModuleName}} {
 
     /// insert puts the value keyed at the input keys into the {{.TreeType}}.
     /// aborts if the key is already in the tree.
-    public fun insert<V>(tree: &mut {{.TreeType}}<V>, {{range .Keys}}{{.KeyName}}: u128, {{end}}value: V) {
+    public fun insert<V>(tree: &mut {{.TreeType}}<V>, {{range .Keys}}{{.KeyName}}: {{$keytype}}, {{end}}value: V) {
         // the max size of the tree is NULL_INDEX.
         assert!(size(tree) < NULL_INDEX, E_TREE_TOO_BIG);
 		push_back(
@@ -376,7 +376,7 @@ module {{.Address}}::{{.ModuleName}} {
 {{end}}    }
 
     /// remove deletes and returns the element from the {{.TreeType}}.
-    public fun remove<V>(tree: &mut {{.TreeType}}<V>, index: u64): ({{range .Keys}}u128, {{end}}V) {
+    public fun remove<V>(tree: &mut {{.TreeType}}<V>, index: u64): ({{range .Keys}}{{$keytype}}, {{end}}V) {
         if (tree.max_index == index) {
             tree.max_index = next_in_reverse_order(tree, index);
         };
@@ -1326,38 +1326,38 @@ module {{.Address}}::{{.ModuleName}} {
 {{end}}{{if .DoTest}}{{if .IsAvl}}
     #[test]
     fun test_avl() {
-        let tree = new<u128>();
+        let tree = new<{{$keytype}}>();
         insert(&mut tree, 6, 6);
         insert(&mut tree, 5, 5);
         insert(&mut tree, 4, 4);
-        let v = vector<Entry<u128>> [
-            new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, AVL_ZERO),
-            new_entry_for_test<u128>(5, 5, NULL_INDEX, 2, 0, AVL_ZERO),
-            new_entry_for_test<u128>(4, 4, 1, NULL_INDEX, NULL_INDEX, AVL_ZERO),
+        let v = vector<Entry<{{$keytype}}>> [
+            new_entry_for_test<{{$keytype}}>(6, 6, 1, NULL_INDEX, NULL_INDEX, AVL_ZERO),
+            new_entry_for_test<{{$keytype}}>(5, 5, NULL_INDEX, 2, 0, AVL_ZERO),
+            new_entry_for_test<{{$keytype}}>(4, 4, 1, NULL_INDEX, NULL_INDEX, AVL_ZERO),
         ];
 
         assert!(tree.root == 1, tree.root);
         assert!(&tree.entries == &v, 2);
 
-        let v = vector<Entry<u128>> [
-            new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, AVL_ZERO),
-            new_entry_for_test<u128>(5, 5, NULL_INDEX, 4, 0, AVL_LEFT_HIGH),
-            new_entry_for_test<u128>(4, 4, 4, NULL_INDEX, NULL_INDEX, AVL_ZERO),
-            new_entry_for_test<u128>(1, 1, 4, NULL_INDEX, NULL_INDEX, AVL_ZERO),
-            new_entry_for_test<u128>(3, 3, 1, 3, 2, AVL_ZERO),
+        let v = vector<Entry<{{$keytype}}>> [
+            new_entry_for_test<{{$keytype}}>(6, 6, 1, NULL_INDEX, NULL_INDEX, AVL_ZERO),
+            new_entry_for_test<{{$keytype}}>(5, 5, NULL_INDEX, 4, 0, AVL_LEFT_HIGH),
+            new_entry_for_test<{{$keytype}}>(4, 4, 4, NULL_INDEX, NULL_INDEX, AVL_ZERO),
+            new_entry_for_test<{{$keytype}}>(1, 1, 4, NULL_INDEX, NULL_INDEX, AVL_ZERO),
+            new_entry_for_test<{{$keytype}}>(3, 3, 1, 3, 2, AVL_ZERO),
         ];
 
         insert(&mut tree, 1, 1);
         insert(&mut tree, 3, 3);
         assert!(&tree.entries == &v, 3);
 
-        let v = vector<Entry<u128>> [
-            new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, AVL_ZERO), // 0
-            new_entry_for_test<u128>(5, 5, 4, 2, 0, AVL_ZERO), // 1
-            new_entry_for_test<u128>(4, 4, 1, NULL_INDEX, NULL_INDEX, AVL_ZERO), // 2
-            new_entry_for_test<u128>(1, 1, 4, NULL_INDEX, 5, AVL_RIGHT_HIGH), // 3
-            new_entry_for_test<u128>(3, 3, NULL_INDEX, 3, 1, AVL_ZERO), // 4
-            new_entry_for_test<u128>(2, 2, 3, NULL_INDEX, NULL_INDEX, AVL_ZERO), // 5
+        let v = vector<Entry<{{$keytype}}>> [
+            new_entry_for_test<{{$keytype}}>(6, 6, 1, NULL_INDEX, NULL_INDEX, AVL_ZERO), // 0
+            new_entry_for_test<{{$keytype}}>(5, 5, 4, 2, 0, AVL_ZERO), // 1
+            new_entry_for_test<{{$keytype}}>(4, 4, 1, NULL_INDEX, NULL_INDEX, AVL_ZERO), // 2
+            new_entry_for_test<{{$keytype}}>(1, 1, 4, NULL_INDEX, 5, AVL_RIGHT_HIGH), // 3
+            new_entry_for_test<{{$keytype}}>(3, 3, NULL_INDEX, 3, 1, AVL_ZERO), // 4
+            new_entry_for_test<{{$keytype}}>(2, 2, 3, NULL_INDEX, NULL_INDEX, AVL_ZERO), // 5
         ];
 
         insert(&mut tree, 2, 2);
@@ -1366,38 +1366,38 @@ module {{.Address}}::{{.ModuleName}} {
 
     #[test]
     fun test_avl_reverse() {
-        let tree = new<u128>();
+        let tree = new<{{$keytype}}>();
         insert(&mut tree, 6, 6);
         insert(&mut tree, 7, 7);
         insert(&mut tree, 8, 8);
-        let v = vector<Entry<u128>> [
-            new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, AVL_ZERO),
-            new_entry_for_test<u128>(7, 7, NULL_INDEX, 0, 2, AVL_ZERO),
-            new_entry_for_test<u128>(8, 8, 1, NULL_INDEX, NULL_INDEX, AVL_ZERO),
+        let v = vector<Entry<{{$keytype}}>> [
+            new_entry_for_test<{{$keytype}}>(6, 6, 1, NULL_INDEX, NULL_INDEX, AVL_ZERO),
+            new_entry_for_test<{{$keytype}}>(7, 7, NULL_INDEX, 0, 2, AVL_ZERO),
+            new_entry_for_test<{{$keytype}}>(8, 8, 1, NULL_INDEX, NULL_INDEX, AVL_ZERO),
         ];
 
         assert!(tree.root == 1, tree.root);
         assert!(&tree.entries == &v, 2);
 
-        let v = vector<Entry<u128>> [
-            new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, AVL_ZERO),
-            new_entry_for_test<u128>(7, 7, NULL_INDEX, 0, 4, AVL_RIGHT_HIGH),
-            new_entry_for_test<u128>(8, 8, 4, NULL_INDEX, NULL_INDEX, AVL_ZERO),
-            new_entry_for_test<u128>(11, 11, 4, NULL_INDEX, NULL_INDEX, AVL_ZERO),
-            new_entry_for_test<u128>(9, 9, 1, 2, 3, AVL_ZERO),
+        let v = vector<Entry<{{$keytype}}>> [
+            new_entry_for_test<{{$keytype}}>(6, 6, 1, NULL_INDEX, NULL_INDEX, AVL_ZERO),
+            new_entry_for_test<{{$keytype}}>(7, 7, NULL_INDEX, 0, 4, AVL_RIGHT_HIGH),
+            new_entry_for_test<{{$keytype}}>(8, 8, 4, NULL_INDEX, NULL_INDEX, AVL_ZERO),
+            new_entry_for_test<{{$keytype}}>(11, 11, 4, NULL_INDEX, NULL_INDEX, AVL_ZERO),
+            new_entry_for_test<{{$keytype}}>(9, 9, 1, 2, 3, AVL_ZERO),
         ];
 
         insert(&mut tree, 11, 11);
         insert(&mut tree, 9, 9);
         assert!(&tree.entries == &v, 3);
 
-        let v = vector<Entry<u128>> [
-            new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, AVL_ZERO), // 0
-            new_entry_for_test<u128>(7, 7, 4, 0, 2, AVL_ZERO), // 1
-            new_entry_for_test<u128>(8, 8, 1, NULL_INDEX, NULL_INDEX, AVL_ZERO), // 2
-            new_entry_for_test<u128>(11, 11, 4, 5, NULL_INDEX, AVL_LEFT_HIGH), // 3
-            new_entry_for_test<u128>(9, 9, NULL_INDEX, 1, 3, AVL_ZERO), // 4
-            new_entry_for_test<u128>(10, 10, 3, NULL_INDEX, NULL_INDEX, AVL_ZERO), // 5
+        let v = vector<Entry<{{$keytype}}>> [
+            new_entry_for_test<{{$keytype}}>(6, 6, 1, NULL_INDEX, NULL_INDEX, AVL_ZERO), // 0
+            new_entry_for_test<{{$keytype}}>(7, 7, 4, 0, 2, AVL_ZERO), // 1
+            new_entry_for_test<{{$keytype}}>(8, 8, 1, NULL_INDEX, NULL_INDEX, AVL_ZERO), // 2
+            new_entry_for_test<{{$keytype}}>(11, 11, 4, 5, NULL_INDEX, AVL_LEFT_HIGH), // 3
+            new_entry_for_test<{{$keytype}}>(9, 9, NULL_INDEX, 1, 3, AVL_ZERO), // 4
+            new_entry_for_test<{{$keytype}}>(10, 10, 3, NULL_INDEX, NULL_INDEX, AVL_ZERO), // 5
         ];
 
         insert(&mut tree, 10, 10);
@@ -1406,8 +1406,8 @@ module {{.Address}}::{{.ModuleName}} {
 
     #[test]
     fun test_min_iter_avl() {
-        let tree = new<u128>();
-        let idx: u128 = 9;
+        let tree = new<{{$keytype}}>();
+        let idx: {{$keytype}} = 9;
         while (idx > 0) {
             let v = idx * 2;
             insert(&mut tree, v, v);
@@ -1429,7 +1429,7 @@ module {{.Address}}::{{.ModuleName}} {
             assert!(v != NULL_INDEX, (idx as u64));
         };
 
-        let idx: u128 = 0;
+        let idx: {{$keytype}} = 0;
         let iter = get_min_index(&tree);
         while (idx < 20) {
             let (_, v) = borrow_at_index(&tree, iter);
@@ -1468,8 +1468,8 @@ module {{.Address}}::{{.ModuleName}} {
 
     #[test]
     fun test_max_iter_avl() {
-        let tree = new<u128>();
-        let idx: u128 = 9;
+        let tree = new<{{$keytype}}>();
+        let idx: {{$keytype}} = 9;
         while (idx > 0) {
             let v = idx * 2;
             insert(&mut tree, v, v);
@@ -1491,7 +1491,7 @@ module {{.Address}}::{{.ModuleName}} {
             assert!(v != NULL_INDEX, (idx as u64));
         };
 
-        let idx: u128 = 20;
+        let idx: {{$keytype}} = 20;
         let iter = get_max_index(&tree);
         while (idx > 0) {
             let (_, v) = borrow_at_index(&tree, iter);
@@ -1529,46 +1529,46 @@ module {{.Address}}::{{.ModuleName}} {
 {{end}}{{if .IsRb}}
     #[test]
     fun test_redblack() {
-        let tree = new<u128>();
+        let tree = new<{{$keytype}}>();
         insert(&mut tree, 6, 6);
         insert(&mut tree, 5, 5);
         insert(&mut tree, 4, 4);
-        let v = vector<Entry<u128>> [
-            new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, RB_RED),
-            new_entry_for_test<u128>(5, 5, NULL_INDEX, 2, 0, RB_BLACK),
-            new_entry_for_test<u128>(4, 4, 1, NULL_INDEX, NULL_INDEX, RB_RED),
+        let v = vector<Entry<{{$keytype}}>> [
+            new_entry_for_test<{{$keytype}}>(6, 6, 1, NULL_INDEX, NULL_INDEX, RB_RED),
+            new_entry_for_test<{{$keytype}}>(5, 5, NULL_INDEX, 2, 0, RB_BLACK),
+            new_entry_for_test<{{$keytype}}>(4, 4, 1, NULL_INDEX, NULL_INDEX, RB_RED),
         ];
 
         assert!(tree.root == 1, tree.root);
         assert!(&tree.entries == &v, 2);
 
-        let v = vector<Entry<u128>> [
-            new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, RB_BLACK),
-            new_entry_for_test<u128>(5, 5, NULL_INDEX, 2, 0, RB_BLACK),
-            new_entry_for_test<u128>(4, 4, 1, 3, NULL_INDEX, RB_BLACK),
-            new_entry_for_test<u128>(1, 1, 2, NULL_INDEX, NULL_INDEX, RB_RED),
+        let v = vector<Entry<{{$keytype}}>> [
+            new_entry_for_test<{{$keytype}}>(6, 6, 1, NULL_INDEX, NULL_INDEX, RB_BLACK),
+            new_entry_for_test<{{$keytype}}>(5, 5, NULL_INDEX, 2, 0, RB_BLACK),
+            new_entry_for_test<{{$keytype}}>(4, 4, 1, 3, NULL_INDEX, RB_BLACK),
+            new_entry_for_test<{{$keytype}}>(1, 1, 2, NULL_INDEX, NULL_INDEX, RB_RED),
         ];
 
         insert(&mut tree, 1, 1);
         assert!(&tree.entries == &v, 3);
 
-        let v = vector<Entry<u128>> [
-            new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, RB_BLACK),
-            new_entry_for_test<u128>(5, 5, NULL_INDEX, 4, 0, RB_BLACK),
-            new_entry_for_test<u128>(4, 4, 4, NULL_INDEX, NULL_INDEX, RB_RED),
-            new_entry_for_test<u128>(1, 1, 4, NULL_INDEX, NULL_INDEX, RB_RED),
-            new_entry_for_test<u128>(3, 3, 1, 3, 2, RB_BLACK),
+        let v = vector<Entry<{{$keytype}}>> [
+            new_entry_for_test<{{$keytype}}>(6, 6, 1, NULL_INDEX, NULL_INDEX, RB_BLACK),
+            new_entry_for_test<{{$keytype}}>(5, 5, NULL_INDEX, 4, 0, RB_BLACK),
+            new_entry_for_test<{{$keytype}}>(4, 4, 4, NULL_INDEX, NULL_INDEX, RB_RED),
+            new_entry_for_test<{{$keytype}}>(1, 1, 4, NULL_INDEX, NULL_INDEX, RB_RED),
+            new_entry_for_test<{{$keytype}}>(3, 3, 1, 3, 2, RB_BLACK),
         ];
         insert(&mut tree, 3, 3);
         assert!(&tree.entries == &v, 4);
 
-        let v = vector<Entry<u128>> [
-            new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, RB_BLACK),
-            new_entry_for_test<u128>(5, 5, NULL_INDEX, 4, 0, RB_BLACK),
-            new_entry_for_test<u128>(4, 4, 4, NULL_INDEX, NULL_INDEX, RB_BLACK),
-            new_entry_for_test<u128>(1, 1, 4, NULL_INDEX, 5, RB_BLACK),
-            new_entry_for_test<u128>(3, 3, 1, 3, 2, RB_RED),
-            new_entry_for_test<u128>(2, 2, 3, NULL_INDEX, NULL_INDEX, RB_RED), // 5
+        let v = vector<Entry<{{$keytype}}>> [
+            new_entry_for_test<{{$keytype}}>(6, 6, 1, NULL_INDEX, NULL_INDEX, RB_BLACK),
+            new_entry_for_test<{{$keytype}}>(5, 5, NULL_INDEX, 4, 0, RB_BLACK),
+            new_entry_for_test<{{$keytype}}>(4, 4, 4, NULL_INDEX, NULL_INDEX, RB_BLACK),
+            new_entry_for_test<{{$keytype}}>(1, 1, 4, NULL_INDEX, 5, RB_BLACK),
+            new_entry_for_test<{{$keytype}}>(3, 3, 1, 3, 2, RB_RED),
+            new_entry_for_test<{{$keytype}}>(2, 2, 3, NULL_INDEX, NULL_INDEX, RB_RED), // 5
         ];
 
         insert(&mut tree, 2, 2);
@@ -1577,46 +1577,46 @@ module {{.Address}}::{{.ModuleName}} {
 
     #[test]
     fun test_redblack_reverse() {
-        let tree = new<u128>();
+        let tree = new<{{$keytype}}>();
         insert(&mut tree, 6, 6);
         insert(&mut tree, 7, 7);
         insert(&mut tree, 8, 8);
-        let v = vector<Entry<u128>> [
-            new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, RB_RED),
-            new_entry_for_test<u128>(7, 7, NULL_INDEX, 0, 2, RB_BLACK),
-            new_entry_for_test<u128>(8, 8, 1, NULL_INDEX, NULL_INDEX, RB_RED),
+        let v = vector<Entry<{{$keytype}}>> [
+            new_entry_for_test<{{$keytype}}>(6, 6, 1, NULL_INDEX, NULL_INDEX, RB_RED),
+            new_entry_for_test<{{$keytype}}>(7, 7, NULL_INDEX, 0, 2, RB_BLACK),
+            new_entry_for_test<{{$keytype}}>(8, 8, 1, NULL_INDEX, NULL_INDEX, RB_RED),
         ];
 
         assert!(tree.root == 1, tree.root);
         assert!(&tree.entries == &v, 2);
 
-        let v = vector<Entry<u128>> [
-            new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, RB_BLACK),
-            new_entry_for_test<u128>(7, 7, NULL_INDEX, 0, 2, RB_BLACK),
-            new_entry_for_test<u128>(8, 8, 1, NULL_INDEX, 3, RB_BLACK),
-            new_entry_for_test<u128>(11, 11, 2, NULL_INDEX, NULL_INDEX, RB_RED),
+        let v = vector<Entry<{{$keytype}}>> [
+            new_entry_for_test<{{$keytype}}>(6, 6, 1, NULL_INDEX, NULL_INDEX, RB_BLACK),
+            new_entry_for_test<{{$keytype}}>(7, 7, NULL_INDEX, 0, 2, RB_BLACK),
+            new_entry_for_test<{{$keytype}}>(8, 8, 1, NULL_INDEX, 3, RB_BLACK),
+            new_entry_for_test<{{$keytype}}>(11, 11, 2, NULL_INDEX, NULL_INDEX, RB_RED),
         ];
 
         insert(&mut tree, 11, 11);
         assert!(&tree.entries == &v, 3);
 
-        let v = vector<Entry<u128>> [
-            new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, RB_BLACK),
-            new_entry_for_test<u128>(7, 7, NULL_INDEX, 0, 4, RB_BLACK),
-            new_entry_for_test<u128>(8, 8, 4, NULL_INDEX, NULL_INDEX, RB_RED),
-            new_entry_for_test<u128>(11, 11, 4, NULL_INDEX, NULL_INDEX, RB_RED),
-            new_entry_for_test<u128>(9, 9, 1, 2, 3, RB_BLACK),
+        let v = vector<Entry<{{$keytype}}>> [
+            new_entry_for_test<{{$keytype}}>(6, 6, 1, NULL_INDEX, NULL_INDEX, RB_BLACK),
+            new_entry_for_test<{{$keytype}}>(7, 7, NULL_INDEX, 0, 4, RB_BLACK),
+            new_entry_for_test<{{$keytype}}>(8, 8, 4, NULL_INDEX, NULL_INDEX, RB_RED),
+            new_entry_for_test<{{$keytype}}>(11, 11, 4, NULL_INDEX, NULL_INDEX, RB_RED),
+            new_entry_for_test<{{$keytype}}>(9, 9, 1, 2, 3, RB_BLACK),
         ];
         insert(&mut tree, 9, 9);
         assert!(&tree.entries == &v, 4);
 
-        let v = vector<Entry<u128>> [
-            new_entry_for_test<u128>(6, 6, 1, NULL_INDEX, NULL_INDEX, RB_BLACK),
-            new_entry_for_test<u128>(7, 7, NULL_INDEX, 0, 4, RB_BLACK),
-            new_entry_for_test<u128>(8, 8, 4, NULL_INDEX, NULL_INDEX, RB_BLACK),
-            new_entry_for_test<u128>(11, 11, 4, 5, NULL_INDEX, RB_BLACK),
-            new_entry_for_test<u128>(9, 9, 1, 2, 3, RB_RED),
-            new_entry_for_test<u128>(10, 10, 3, NULL_INDEX, NULL_INDEX, RB_RED), // 5
+        let v = vector<Entry<{{$keytype}}>> [
+            new_entry_for_test<{{$keytype}}>(6, 6, 1, NULL_INDEX, NULL_INDEX, RB_BLACK),
+            new_entry_for_test<{{$keytype}}>(7, 7, NULL_INDEX, 0, 4, RB_BLACK),
+            new_entry_for_test<{{$keytype}}>(8, 8, 4, NULL_INDEX, NULL_INDEX, RB_BLACK),
+            new_entry_for_test<{{$keytype}}>(11, 11, 4, 5, NULL_INDEX, RB_BLACK),
+            new_entry_for_test<{{$keytype}}>(9, 9, 1, 2, 3, RB_RED),
+            new_entry_for_test<{{$keytype}}>(10, 10, 3, NULL_INDEX, NULL_INDEX, RB_RED), // 5
         ];
 
         insert(&mut tree, 10, 10);
@@ -1625,8 +1625,8 @@ module {{.Address}}::{{.ModuleName}} {
 
     #[test]
     fun test_min_iter_redblack() {
-        let tree = new<u128>();
-        let idx: u128 = 9;
+        let tree = new<{{$keytype}}>();
+        let idx: {{$keytype}} = 9;
         while (idx > 0) {
             let v = idx * 2;
             insert(&mut tree, v, v);
@@ -1648,7 +1648,7 @@ module {{.Address}}::{{.ModuleName}} {
             assert!(v != NULL_INDEX, (idx as u64));
         };
 
-        let idx: u128 = 0;
+        let idx: {{$keytype}} = 0;
         let iter = get_min_index(&tree);
         while (idx < 20) {
             let (_, v) = borrow_at_index(&tree, iter);
@@ -1686,8 +1686,8 @@ module {{.Address}}::{{.ModuleName}} {
 
     #[test]
     fun test_max_iter_redblack() {
-        let tree = new<u128>();
-        let idx: u128 = 9;
+        let tree = new<{{$keytype}}>();
+        let idx: {{$keytype}} = 9;
         while (idx > 0) {
             let v = idx * 2;
             insert(&mut tree, v, v);
@@ -1709,7 +1709,7 @@ module {{.Address}}::{{.ModuleName}} {
             assert!(v != NULL_INDEX, (idx as u64));
         };
 
-        let idx: u128 = 20;
+        let idx: {{$keytype}} = 20;
         let iter = get_max_index(&tree);
         while (idx > 0) {
             let (_, v) = borrow_at_index(&tree, iter);
