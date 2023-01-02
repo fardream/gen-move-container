@@ -16,6 +16,9 @@ base on GNU libavl https://adtinfo.org/
 based on http://github.com/agl/critbit
 - critbit tree
 
+also provided:
+- double linked list
+
 Usage:
   gen-move-container [command]
 
@@ -25,6 +28,7 @@ Available Commands:
   completion  Generate the autocompletion script for the specified shell
   critbit     generate critbit tree
   help        Help about any command
+  linked-list generate linked list
   red-black   generate red-black tree
 
 Flags:
@@ -47,8 +51,8 @@ The key must be a native integer (`u8`, `u16`, `u32`, `u64`, `u128`, or `u256`),
 
 Critbit Tree based on [agl/critbit](http://github.com/agl/critbit), but with some differences:
 
-- Instead of infinite length strings, the key implemented here is fixed width integer.
-- Instead of setting critbit 0 and other bits 1, we use inverse of that. So the masking operation is not bitwise or, but bitwise and.
+- Instead of infinite length strings, the key implemented here is fixed width integer (again, `u8`, `u16`, `u32`, `u64`, `u128` or `u256`, and default is `u128`).
+- Instead of setting critbit 0 and other bits 1, inverse of that is used. So the masking operation is not bitwise or, but bitwise and.
 
 The tree splits at the most significant bit, 0-bit is always left sub tree, and 1-bit is always right sub tree, therefore the tree is also a binary search tree, albeit with following differences:
 
